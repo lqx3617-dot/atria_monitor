@@ -1,0 +1,14 @@
+# 构建产物 / 备份
+*.bak*
+*.old
+native/*.v3*
+
+# 运行时数据（绝不入库）
+atria_status.json
+atria_monitor.lock
+atria_collect.log
+atria_icons/
+
+# 本地开发临时
+tmp/
+*.zip

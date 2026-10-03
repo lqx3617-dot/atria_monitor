@@ -1,0 +1,3380 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Atria Monitor</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+:root { color-scheme: dark;
+  --bg: #0a0f1e;
+  --dim: #94a3b8;
+  --txt: #f1f5f9;
+  --acc: #38bdf8;
+  --acc2: #0ea5e9;
+  --ok: #4ade80;
+  --warn: #facc15;
+  --bad: #f87171;
+  --brd: rgba(148, 163, 184, 0.14);
+  --card: linear-gradient(160deg, rgba(30, 41, 59, 0.78), rgba(15, 23, 42, 0.55));
+  --purple: #38bdf8;  /* v3.2.44: accent lock - single cyan family, purple retired */
+}
+html { background: var(--bg); }
+/* v3.2.44: grain layer - subtle SVG noise kills the flat plastic look */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+body {
+  background: radial-gradient(900px 460px at 85% -10%, rgba(56, 189, 248, 0.08), transparent 60%), var(--bg);
+  color: var(--txt);
+  font-family: -apple-system, "Noto Sans SC", "PingFang SC", sans-serif;
+  /* v3.3.6: 全面屏安全区 — 刘海/圆角不顶内容, 至少 14/16px */
+  padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  min-height: 100vh;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+.wrap { max-width: 920px; margin: 0 auto; }
+h1 {
+  font-size: clamp(24px, 4.2vw, 34px); margin-bottom: 18px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.06;
+  /* v3.2.85: gradient-text 已删 — 改纯色, 见 tail 新规则 */
+}
+.sub { font-size: 13px; color: var(--dim); font-weight: normal; margin-left: 8px; -webkit-text-fill-color: var(--dim); }
+/* v3.3.3: 顶部品牌区 — app-icon 徽标 + 标题收紧 + 设备信息 chip */
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-badge {
+  flex: none; width: 40px; height: 40px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(150deg, #0284c7, #38bdf8 62%, #0ea5e9);
+  box-shadow: 0 6px 18px rgba(14, 165, 233, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.brand-badge .ic { width: 21px; height: 21px; margin: 0; vertical-align: initial; color: #f0f9ff; }
+.brand-title { letter-spacing: -0.03em; }
+.brand .top-actions { float: none; margin-left: auto; }
+h1 .sub {
+  display: inline-flex; align-items: center; align-self: center;
+  font-size: 11.5px; letter-spacing: 0.02em; line-height: 1.5;
+  padding: 3px 10px; border-radius: 999px; margin-left: 2px;
+  background: rgba(148, 163, 184, 0.10);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  -webkit-text-fill-color: var(--dim);
+  white-space: nowrap;
+}
+@keyframes fadeUp { from { opacity: 0; } to { opacity: 1; } }
+.wrap > * { animation: fadeUp 0.25s ease both; }
+@media (prefers-reduced-motion: reduce) {
+.wrap > * { animation: none; }
+.modal-card { animation: none; }
+.bar-fill { transition: none; }
+.value { transition: none; }
+}
+ .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 14px; }
+/* v3.2.34: 响应式 - 宽屏 3 列, 窄屏 2 列 */
+@media (min-width: 720px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 560px) { .cards { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
+.card { contain: layout paint style;   /* v3.2.28: 卡片间重绘隔离 */
+  position: relative; overflow: hidden;
+  will-change: transform;
+  background: var(--card);
+  border: 1px solid var(--brd);
+  border-radius: 16px; padding: 16px 18px;
+  box-shadow: 0 6px 16px rgba(2, 6, 23, 0.30), inset 0 1px 0 rgba(148, 163, 184, 0.08);
+  transition: transform 0.25s ease;  /* v3.2.50: transform-only, no rasterizing props */
+}
+.card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.6), transparent);
+  opacity: 0.7;
+}
+ .card:hover { border-color: rgba(56, 189, 248, 0.45); transform: translateY(-2px); }  /* v3.2.50: lift instead of shadow re-raster */
+/* v3.2.34: 卡片右上角状态点 */
+.card .dot { position: absolute; top: 14px; right: 14px; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+.label { color: var(--dim); font-size: 13px; margin-bottom: 6px; letter-spacing: 0.02em; }
+ .value { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+    transition: color 0.3s ease, transform 0.15s ease; }
+/* v3.2.34: 数值变化脉冲 */
+.value.pulse { animation: numPulse 0.4s ease; }
+/* v3.2.28: 低性能设备 (硬件并发 <=4 或 reduced-motion) 关闭动画, 减少 GPU 合成压力 */
+@media (prefers-reduced-motion: reduce) {
+  .value.pulse { animation: none; }
+  .bar-fill { transition: none; }
+  .card { transition: none; }
+}
+.value, .bar-fill, .dot { will-change: transform, opacity; }   /* v3.2.28: 合成层提升, 动画不触发重排 */
+@keyframes numPulse { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
+.top-actions { float: right; display: flex; gap: 6px; }
+.top-btn { padding: 7px 11px; font-size: 14px; }
+.detail { color: var(--dim); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.red { color: var(--bad); }
+.yellow { color: var(--warn); }
+.green { color: var(--ok); }
+.box {
+  background: var(--card);
+  border: 1px solid var(--brd);
+  border-radius: 16px; padding: 16px 18px; margin-bottom: 14px;
+  box-shadow: 0 6px 16px rgba(2, 6, 23, 0.30), inset 0 1px 0 rgba(148, 163, 184, 0.08);
+}
+canvas { width: 100%; height: 160px; display: block; border-radius: 8px; }
+/* v3.3.6: 自适应断点 — 宽屏(平板/桌面) 展开, 小屏压缩 */
+@media (min-width: 1024px) {   /* v3.3.6: 断点下探到 1024 — 平板竖屏 CSS 视口 ~1142px (3000px@420dpi) 命中 */
+  .wrap { max-width: 1400px; }
+  .cards { grid-template-columns: repeat(4, 1fr); }
+  canvas { height: 200px; }                    /* 宽屏图表加高, 绘制自适应 */
+  /* v3.4.5: minmax(0,1fr) — 轨道下限归零, 长进程名不再把右列挤没, 超出部分由 .p-name ellipsis 截断 */
+  #procs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 10px; align-content: start; max-height: min(62vh, 1100px); }
+  .proc { margin-bottom: 2px; }                /* grid gap 已有间距, 收掉行 margin */
+}
+@media (min-width: 1700px) {
+  .wrap { max-width: 1640px; }
+  .cards { grid-template-columns: repeat(5, 1fr); }
+}
+h2 { font-size: 17px; margin: 20px 0 10px; display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.012em; text-wrap: balance; }
+h2::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: rgba(56, 189, 248, 0.55); flex: none; }
+.alert {
+  background: var(--card);
+  border: 1px solid var(--brd);
+  border-left: 4px solid #475569;
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+  box-shadow: 0 3px 10px rgba(2, 6, 23, 0.22);
+  transition: transform 0.2s ease;
+}
+.alert:hover { transform: translateX(3px); }
+.alert.hi { border-left-color: var(--bad); }
+.alert.md { border-left-color: var(--warn); }
+.a-top { display: flex; justify-content: space-between; align-items: baseline; }
+.a-title { font-weight: 700; }
+.a-time { font-size: 12px; color: #64748b; font-variant-numeric: tabular-nums; }
+.a-detail { font-size: 13px; color: #cbd5e1; margin-top: 4px; word-break: break-all; }
+.a-sug { font-size: 12px; color: var(--acc); margin-top: 4px; }
+.mod {
+  display: inline-block; background: rgba(51, 65, 85, 0.55); color: #cbd5e1;
+  border: 1px solid var(--brd);
+  border-radius: 8px; padding: 5px 12px; margin: 3px; font-size: 13px;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+.mod:hover { transform: translateY(-1px); background: rgba(71, 85, 105, 0.65); }
+.empty { color: #64748b; font-size: 14px; padding: 10px 0; text-align: center; }
+.bar {
+  position: relative;
+  height: 10px; background: rgba(51, 65, 85, 0.45); border-radius: 999px;
+  overflow: hidden; margin-top: 8px;
+  box-shadow: inset 0 1px 3px rgba(2, 6, 23, 0.6);
+}
+.bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+.bar::after {
+  content: ""; position: absolute; inset: 0; border-radius: 999px; pointer-events: none;
+  background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 6px, transparent 6px 12px);
+}
+button { font-family: inherit; }
+/* v3.2.49: kill default focus ring on click (white edge), keep keyboard visibility */
+button:focus, .btn:focus, [type=checkbox]:focus { outline: none; }
+button:focus-visible, .btn:focus-visible, [type=checkbox]:focus-visible { outline: 2px solid rgba(56, 189, 248, 0.55); outline-offset: 2px; }
+.btn {
+  border: none; border-radius: 10px; padding: 9px 18px;
+  font-size: 14px; font-weight: 600; cursor: pointer; color: #fff;
+  box-shadow: 0 4px 14px rgba(2, 6, 23, 0.35);
+  transition: transform 0.15s ease, opacity 0.15s ease;  /* v3.2.50: no filter (forces re-raster) */
+  /* v3.2.34: 点击涟漪 + 合成层提升 */
+  letter-spacing: 0.02em;
+  position: relative; overflow: hidden;
+  will-change: transform;
+}
+/* v3.2.34: 按钮点击涟漪 */
+.btn::after {
+  content: ""; position: absolute; inset: 0; border-radius: 10px;
+  background: radial-gradient(circle at center, rgba(56, 189, 248, 0.18), transparent 62%);
+  opacity: 0; transition: opacity 0.3s ease;
+}
+.btn:active::after { opacity: 1; transition: opacity 0s; }
+.btn:hover { transform: translateY(-1px); opacity: 0.92; }  /* v3.2.50: opacity instead of filter */
+.btn:active { transform: translateY(0) scale(0.97); transition: transform 0.06s ease; }  /* v3.2.50: snappy press */
+.btn-opt { background: linear-gradient(135deg, #16a34a, #22c55e); box-shadow: 0 6px 18px rgba(22, 163, 74, 0.35); }
+.btn-ai { background: linear-gradient(135deg, #0ea5e9, #38bdf8); box-shadow: 0 6px 18px rgba(14, 165, 233, 0.35); }
+.btn-ghost { background: rgba(51, 65, 85, 0.55); color: #e2e8f0; border: 1px solid var(--brd); }
+input[type="checkbox"] { accent-color: var(--acc); width: 16px; height: 16px; cursor: pointer; }
+.modal {
+  position: fixed; inset: 0; z-index: 99;
+  background: rgba(2, 6, 23, 0.82);
+  align-items: center; justify-content: center;
+}
+/* v3.4.2: 点空白关闭 — 遮罩本身可点击, 卡片内容不响应 */
+.modal > .modal-card { cursor: default; }
+.modal-card {
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.93));
+  border: 1px solid var(--brd);
+  border-radius: 18px; padding: 22px;
+  width: min(420px, 92vw);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.5), inset 0 1px 0 rgba(148, 163, 184, 0.1);
+  animation: pop 0.22s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+@keyframes pop { from { opacity: 0; transform: translateY(12px) scale(0.96); } to { opacity: 1; transform: none; } }
+.modal-card h3 { margin-bottom: 12px; font-size: 17px; font-weight: 700; }
+.ipt {
+  width: 100%; background: rgba(10, 15, 30, 0.7); color: var(--txt);
+  border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px;
+  padding: 9px 12px; margin-top: 5px; outline: none;
+  transition: border-color 0.2s ease;  /* v3.2.50: drop box-shadow transition */
+}
+.ipt:focus { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18); }
+.ipt::placeholder { color: #475569; }
+.lbl { font-size: 13px; color: #94a3b8; display: block; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+.grid10 { display: grid; gap: 10px; }
+  /* v3.2.34: 后台进程列表 */
+   /* v3.4.4: 限高改视口自适应 — 高屏直接显示更多行, 不用滚动也能看到排在后面的子进程条目 */
+  .proc-list { max-height: min(62vh, 1100px); overflow-y: auto;
+    /* v3.2.34: 滚动回弹 + 细滚动条 */
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: #334155 transparent; }
+  .proc {
+    min-width: 0;                               /* v3.4.5: grid item 下限归零, 配合 minmax(0,1fr) 防炸裂 */
+    display: flex; align-items: center; gap: 7px;
+    background: var(--card); border: 1px solid var(--brd);
+    border-radius: 9px; padding: 6px 9px; margin-bottom: 5px;
+    font-size: 12px;
+    /* v3.2.34: 进入动画 + 悬浮反馈 + 合成层 */
+    animation: fadeUp 0.2s ease both;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+    /* v3.2.50: dropped will-change — 60 rows × pre-allocated layers cost more than the 2px hover saves */
+    /* v3.2.43: 屏幕外行跳过布局与绘制, 长列表滚动更跟手 */
+    content-visibility: auto;
+    contain-intrinsic-size: 40px;
+  }
+  .proc:hover { border-color: rgba(56, 189, 248, 0.3); transform: translateX(2px); }
+  /* v3.2.34: 超过 20 行的列表项不播动画, 避免长列表卡顿 */
+  .proc:nth-child(n+20) { animation: none; }
+  .proc .p-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proc .p-pid { color: #64748b; font-variant-numeric: tabular-nums; font-family: monospace; font-size: 11px; flex: none; width: 44px; }
+  .proc .p-rss { color: #cbd5e1; font-variant-numeric: tabular-nums; flex: none; width: 58px; text-align: right; }
+  /* v3.2.71: 进程 CPU% 列 */
+  .proc .p-cpu { color: #64748b; font-variant-numeric: tabular-nums; font-size: 11px; flex: none; width: 42px; text-align: right; }
+  .proc .p-cpu.hot { color: #f59e0b; }
+  .proc .p-stat { flex: none; width: 24px; text-align: center; font-size: 10px; padding: 2px 4px; border-radius: 5px; }
+  .stat-S { background: rgba(74, 222, 128, 0.14); color: #4ade80; }
+  .stat-R { background: rgba(56, 189, 248, 0.16); color: #38bdf8; }
+  .stat-Z { background: rgba(248, 113, 113, 0.16); color: #f87171; }
+  .stat-D { background: rgba(250, 204, 21, 0.16); color: #facc15; }
+  .stat-T { background: rgba(148, 163, 184, 0.18); color: #94a3b8; }
+  /* v3.2.34: 模块开关 */
+  .mod-switch { position: relative; display: inline-block; width: 30px; height: 16px; vertical-align: middle; margin-left: 4px; }
+  .mod-switch input { opacity: 0; width: 0; height: 0; }
+  .mod-slider { position: absolute; cursor: pointer; inset: 0; background: #475569; border-radius: 999px; transition: 0.2s; }
+  .mod-slider::before { content: ""; position: absolute; height: 12px; width: 12px; left: 2px; bottom: 2px; background: #cbd5e1; border-radius: 50%; transition: 0.2s; }
+  .mod-switch input:checked + .mod-slider { background: #16a34a; }
+  .mod-switch input:checked + .mod-slider::before { transform: translateX(14px); }
+  /* v3.2.34: 进程结束按钮 */
+  .p-wl { margin: 0 4px 0 2px; width: 16px; height: 16px; accent-color: #4ade80; vertical-align: middle; }
+.ic { display:inline-block; width:1em; height:1em; vertical-align:-0.18em; color:inherit; flex:none; }
+.btn .ic { width:15px; height:15px; margin-right:5px; vertical-align:-0.2em; }
+h1 .ic { width:22px; height:22px; vertical-align:-0.32em; margin-right:7px; }
+h2 .ic { width:16px; height:16px; vertical-align:-0.24em; margin-right:6px; }
+.empty .ic { width:18px; height:18px; vertical-align:-0.24em; margin-right:6px; }
+.p-kill { padding: 2px 10px !important; font-size: 11px !important; flex: none; }
+
+/* ═══ v3.2.86: 排版分层 — class 叠加, 不动现有 id/class 引用 ═══ */
+.cards { gap: 10px; }
+.card { padding: 14px 16px; }
+/* 核心卡: 内存/CPU — 最重视觉 */
+.card.u-core { padding: 18px 20px; }
+.card.u-core .value { font-size: 38px; }
+.card.u-core .bar { height: 12px; margin-top: 10px; }
+.card.u-core .label { font-size: 13px; letter-spacing: 0.03em; }
+/* 次要卡: 温度/电池 — 中等 */
+.card.u-sec .value { font-size: 26px; }
+.card.u-sec .label { font-size: 12px; }
+.card.u-sec .bar { height: 8px; }
+/* mini 卡: 存储/网络 — 最轻, 小字数据 */
+.card.u-mini .value { font-size: 20px; }
+.card.u-mini .label { font-size: 12px; }
+.card.u-mini .bar { height: 6px; }
+.card.u-mini .detail { display: none; }
+/* 次要按钮收纳行 */
+.u-more { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; margin-top: 8px;
+  padding-top: 8px; border-top: 1px solid var(--brd); }
+.u-mini-btn { padding: 5px 10px !important; font-size: 12px !important; opacity: 0.8; }
+.u-mini-btn:hover { opacity: 1; }
+/* h2 竖条语义分色 */
+h2.u-h2-alert::before { background: rgba(248, 113, 113, 0.55); }
+h2.u-h2-ok::before { background: rgba(74, 222, 128, 0.55); }
+h2.u-h2-neutral::before { background: rgba(148, 163, 184, 0.5); }
+/* v3.2.86: h1 去渐变 — gradient-text 是 AI tell, 改纯色+字重对比 */
+h1 { background: none; -webkit-background-clip: initial; background-clip: initial;
+  color: var(--txt); -webkit-text-fill-color: var(--txt); }
+h1 .sub { -webkit-text-fill-color: var(--dim); }
+/* v3.3.6: 极窄屏压缩 — 列宽/内边距/输入框让位给进程名 */
+@media (max-width: 420px) {
+  .card { padding: 12px; }
+  .card.u-core { padding: 14px; }
+  .card.u-core .value { font-size: 28px; }
+  .proc { gap: 6px; padding: 7px 8px; }
+  .proc .p-pid { width: 42px; }
+  .proc .p-stat { display: none; }             /* 极窄屏隐藏 S/R 状态 chip, 名字优先 */
+  #aiChatBar input.u-ipt-ai { min-width: 0; }  /* 320px 屏输入框不再溢出 */
+  .brand { gap: 8px; }
+  .brand-title { font-size: 18px; }
+  .top-btn { padding: 6px 8px; }
+}
+/* 响应式: 窄屏核心卡不变, mini 卡压缩 */
+@media (max-width: 560px) {
+  .brand { flex-wrap: wrap; row-gap: 6px; }    /* 顶部品牌区窄屏折行, 不挤压 */
+}
+  .card.u-core .value { font-size: 32px; }
+  .card.u-sec .value { font-size: 22px; }
+  .card.u-mini .value { font-size: 17px; }
+}
+
+/* ═══ v3.2.86: AI 诊断区美化 — 作用域限定 #aiContent, 不影响告警卡片 ═══ */
+/* 场景选择条 */
+#aiTplBar.u-tplbar { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+  padding: 8px 12px; background: rgba(148, 163, 184, 0.05);
+  border: 1px solid var(--brd); border-radius: 10px; }
+#aiTplBar .u-tpl-lab { font-size: 12px; color: var(--dim); letter-spacing: 0.02em; }
+#aiTplBar select.u-sel { background: #1e293b; border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 13px;
+  outline: none; cursor: pointer; transition: border-color 0.15s ease; }
+#aiTplBar select.u-sel:focus { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18); }
+/* 追问条: 初始隐藏, showChatBar() 设 inline display=flex 覆盖 */
+#aiChatBar.u-chatbar { display: none; margin-top: 10px; align-items: center; gap: 8px; flex-wrap: wrap; }
+#aiChatBar input.u-ipt-ai { flex: 1; min-width: 180px; max-width: 420px;
+  background: rgba(10, 15, 30, 0.7); color: var(--txt);
+  border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px;
+  padding: 9px 12px; font-size: 13px; outline: none; transition: border-color 0.15s ease; }
+#aiChatBar input.u-ipt-ai:focus { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18); }
+/* 诊断结果 — 风险等级 chip (仅 #aiContent, 告警列表不受影响) */
+#aiContent .a-title { display: inline-block; padding: 3px 12px; border-radius: 999px;
+  font-size: 13px; font-weight: 700; background: rgba(148, 163, 184, 0.12); }
+#aiContent .a-title.red { background: rgba(248, 113, 113, 0.16); }
+#aiContent .a-title.yellow { background: rgba(250, 204, 21, 0.16); }
+#aiContent .a-title.green { background: rgba(74, 222, 128, 0.16); }
+/* 建议条: 左侧色条 */
+#aiContent .a-sug { padding-left: 10px; border-left: 2px solid rgba(56, 189, 248, 0.45); margin-top: 6px; }
+/* 动作行卡片化 */
+#aiContent .act-row { background: rgba(148, 163, 184, 0.05);
+  border: 1px solid var(--brd); border-radius: 10px; padding: 8px 12px; margin-top: 8px; }
+
+/* ═══ v3.2.87: 诊断结果卡片 — #aiContent 立成一张完整的卡 ═══ */
+#aiContent {
+  margin-top: 10px;
+  padding: 14px 16px;
+  background: rgba(148, 163, 184, 0.045);
+  border: 1px solid var(--brd);
+  border-radius: 14px;
+}
+/* 顶部行: 风险 chip 与时间戳拉开 */
+#aiContent .a-top { margin-bottom: 8px; }
+/* 摘要正文: 可读性行高 */
+#aiContent .a-detail { line-height: 1.65; color: #dbe4f0; }
+/* 加载/空态: 轻柔呼吸, 不再死文字 */
+#aiContent .empty {
+  animation: uBreathe 1.8s ease-in-out infinite;
+}
+@keyframes uBreathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+/* 追问对话: 问题=青条, 回答=绿条, 失败=红条 (inline 色 + 左条已 v3.2.87 就位) */
+#aiContent .a-sug[style*="#38bdf8"] { border-left-color: rgba(56, 189, 248, 0.7); }
+#aiContent .a-sug[style*="#4ade80"] { border-left-color: rgba(74, 222, 128, 0.7); }
+#aiContent .a-sug[style*="#f87171"] { border-left-color: rgba(248, 113, 113, 0.7); }
+/* 动作区与建议区: 细分隔线 */
+#aiActions, #aiSugSlot { margin-top: 10px; }
+#aiActions:empty, #aiSugSlot:empty { margin-top: 0; }
+
+
+/* ═══ v3.2.89: 场景选择改纯 HTML 弹层 — 彻底绕开 WebView 原生 select 白色弹层 ═══ */
+/* 触发条: 保留原 select.u-sel 视觉, 改为 button (无原生弹层) */
+#aiTplBar button.u-sel-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: #1e293b; color: #e2e8f0;
+  border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px;
+  padding: 6px 10px; font-size: 13px; outline: none; cursor: pointer;
+  transition: border-color 0.15s ease;
+  -webkit-appearance: none; appearance: none;
+}
+#aiTplBar button.u-sel-btn:focus-visible { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18); }
+#aiTplBar button.u-sel-btn .u-sel-caret {
+  display: inline-block; width: 0; height: 0;
+  border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-top: 5px solid #7dd3fc; margin-left: 2px;
+}
+#aiTplBar button.u-sel-btn[aria-expanded="true"] .u-sel-caret { transform: rotate(180deg); }
+/* 弹层: 页面内 absolute 浮层, 深色卡片, z-index 200 > modal 99 */
+#aiTplPop {
+  position: fixed; z-index: 200; min-width: 200px;
+  max-height: 320px; overflow-y: auto;
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.985), rgba(15, 23, 42, 0.97));
+  border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(148, 163, 184, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: aiTplPopIn 0.16s ease-out;
+}
+@keyframes aiTplPopIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+#aiTplPop .tpl-item {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 9px 12px; border-radius: 8px; cursor: pointer;
+}
+#aiTplPop .tpl-item .tpl-name { font-size: 13px; color: #e2e8f0; font-weight: 500; }
+#aiTplPop .tpl-item .tpl-hint { font-size: 11px; color: #8b9dc3; }
+#aiTplPop .tpl-item:hover, #aiTplPop .tpl-item:focus-visible {
+  background: rgba(56, 189, 248, 0.10); outline: none;
+}
+#aiTplPop .tpl-item[aria-selected="true"] {
+  background: rgba(56, 189, 248, 0.16);
+}
+#aiTplPop .tpl-item[aria-selected="true"] .tpl-name { color: #7dd3fc; }
+/* 遮罩: 透明可点关闭弹层, z-index 199 (在弹层下, 其他内容上) */
+#aiTplMask {
+  position: fixed; inset: 0; z-index: 199;
+  background: transparent;
+}
+/* v3.3.8: 模型弹层遮罩 — 透明可点关闭, z 209 在弹层(210)下、modal(99)上 */
+#aiCfgMask {
+  position: fixed; inset: 0; z-index: 209;
+  background: transparent;
+}
+/* v3.3.8: 模型名自定义弹层 — 同 aiTplPop 模式, 绕开原生 select 白色弹层 */
+#aiCfgPop {
+  position: fixed; z-index: 210; min-width: 220px; max-width: 360px;
+  max-height: 320px; overflow-y: auto;
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.985), rgba(15, 23, 42, 0.97));
+  border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(148, 163, 184, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  animation: aiTplPopIn 0.16s ease-out;
+}
+#aiCfgPop .tpl-item {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 9px 12px; border-radius: 8px; cursor: pointer;
+}
+#aiCfgPop .tpl-item .tpl-name { font-size: 13px; color: #e2e8f0; font-weight: 500; }
+#aiCfgPop .tpl-item:hover, #aiCfgPop .tpl-item:focus-visible {
+  background: rgba(56, 189, 248, 0.10); outline: none;
+}
+#aiCfgPop .tpl-item[aria-selected="true"] { background: rgba(56, 189, 248, 0.16); }
+#aiCfgPop .tpl-item[aria-selected="true"] .tpl-name { color: #7dd3fc; }
+#aiCfgPop .ai-pop-hint {
+  font-size: 11px; color: #8b9dc3; padding: 6px 12px 4px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.10); margin-bottom: 4px;
+}
+#cfgModelBtn {
+  display: none; align-items: center; gap: 6px;
+  background: #1e293b; color: #e2e8f0;
+  border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px;
+  padding: 8px 12px; font-size: 13px; outline: none; cursor: pointer;
+  transition: border-color 0.15s ease;
+  -webkit-appearance: none; appearance: none;
+  flex: none; max-width: 220px;
+}
+#cfgModelBtn:focus-visible { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18); }
+#cfgModelBtn .u-sel-caret {
+  display: inline-block; width: 0; height: 0;
+  border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-top: 5px solid #7dd3fc; margin-left: 2px; flex: none;
+}
+#cfgModelBtn[aria-expanded="true"] .u-sel-caret { transform: rotate(180deg); }
+#cfgModelBtn .m-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+<!-- v3.2.48: inline SVG line icons - replace emoji, CSS-colored via currentColor -->
+<symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></symbol>
+<symbol id="i-log" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><line x1="8.5" y1="12" x2="15.5" y2="12"/><line x1="8.5" y1="15.5" x2="15.5" y2="15.5"/><line x1="8.5" y1="19" x2="12.5" y2="19"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M4.2 12H1.6M22.4 12h-2.6M6.3 6.3l1.8 1.8M15.9 15.9l1.8 1.8M17.7 6.3l-1.8 1.8M8.1 15.9l-1.8 1.8"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="20.5" x2="20.5" y2="20.5"/><polyline points="6,16 10,11 14,14 19,7"/></symbol>
+<symbol id="i-ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l1.9 4.6 4.6 1.9-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.9z"/><path d="M18.5 15.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9.5 16.5H2.5z"/><line x1="12" y1="10" x2="12" y2="14.5"/><circle cx="12" cy="17.2" r=".4" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-module" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.5"/></symbol>
+<symbol id="i-process" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4.5" y1="7" x2="19.5" y2="7"/><circle cx="9" cy="7" r="2.2"/><line x1="4.5" y1="14" x2="19.5" y2="14"/><circle cx="15" cy="14" r="2.2"/><line x1="4.5" y1="20" x2="19.5" y2="20"/><circle cx="11" cy="20" r="2.2"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="20.5" y2="20.5"/></symbol>
+<symbol id="i-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="15.5,8.5 11,11 8.5,15.5 13,13"/></symbol>
+<symbol id="i-broom" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 3l-7.5 7.5M8.5 12.5l3 3M6 15.5L3.5 21l5.5-2.5"/><path d="M11.5 9l3.5 3.5"/></symbol>
+<symbol id="i-battery" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="16" height="8.5" rx="2"/><line x1="21" y1="11" x2="21" y2="13.5"/><rect x="5.5" y="11" width="6" height="2.5" rx="1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5c3.5 2.5 5.5 6 5.5 10.5 0 2-1 3.5-2.5 4.5h-6c-1.5-1-2.5-2.5-2.5-4.5C6.5 8.5 8.5 5 12 2.5z"/><circle cx="12" cy="10" r="1.8"/><path d="M9.5 20.5l-1.5 1.8M14.5 20.5l1.5 1.8"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13,2.5 5.5,13.5 11,13.5 10,21.5 18,10.5 12.5,10.5"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10v-6z"/><polyline points="8.5,12.5 11,15 16,9.5"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5.5" x2="12" y2="18.5"/><line x1="5.5" y1="12" x2="18.5" y2="12"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></symbol>
+<symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="20"/><line x1="6" y1="8" x2="18" y2="8"/><path d="M3.5 8L6 14.5h-5z"/><path d="M18.5 8L21 14.5h-5z"/></symbol>
+</svg>
+<div class="wrap">
+  <h1 class="brand"><span class="brand-badge"><svg class="ic"><use href="#i-phone"/></svg></span><span class="brand-title">Atria Monitor</span><span id="dev" class="sub"></span><span class="top-actions"><button id="logBtn" class="btn btn-ghost top-btn" title="查看运行日志"><svg class="ic"><use href="#i-log"/></svg></button><button id="settingsBtn" class="btn btn-ghost top-btn" title="设置"><svg class="ic"><use href="#i-settings"/></svg></button></span></h1>
+  <div class="cards">
+    <div class="card u-core">
+      <span class="dot" id="memDot" style="color:#4ade80;background:#4ade80"></span>
+      <div class="label">内存占用</div>
+      <div id="memPct" class="value green">--</div>
+      <div class="bar"><div id="memBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
+      <div id="memDetail" class="detail"></div>
+    </div>
+    <div class="card">
+      <span class="dot" id="cpuDot" style="color:#4ade80;background:#4ade80"></span>
+      <div class="label">CPU 占用</div>
+      <div id="cpuPct" class="value green">--</div>
+      <div class="bar"><div id="cpuBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
+    </div>
+    <div class="card u-sec">
+      <span class="dot" id="tempDot" style="color:#4ade80;background:#4ade80"></span>
+      <div class="label">温度 (CPU)</div>
+      <div id="tempVal" class="value green">--</div>
+      <div class="bar"><div id="tempBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
+      <div id="tempDetail" class="detail"></div>
+    </div>
+    <div class="card u-sec">
+      <span class="dot" id="battDot" style="color:#4ade80;background:#4ade80"></span>
+      <div class="label">电池</div>
+      <div id="battVal" class="value green">--</div>
+      <div class="bar"><div id="battBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
+      <div id="battDetail" class="detail"></div>
+    </div>
+    <div class="card u-mini">
+      <span class="dot" id="storeDot" style="color:#4ade80;background:#4ade80"></span>
+      <div class="label">存储 /data</div>
+      <div id="storeVal" class="value green">--</div>
+      <div class="bar"><div id="storeBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
+      <div id="storeDetail" class="detail"></div>
+    </div>
+    <div class="card u-mini">
+      <span class="dot" id="netDot" style="color:#4ade80;background:#4ade80"></span>
+      <div class="label">网速</div>
+      <div id="netVal" class="value green">--</div>
+      <div class="bar"><div id="netBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
+      <div id="netDetail" class="detail"></div>
+    </div>
+    <!-- v3.2.98: 耗电来源 - 息屏掉电根因: wakelock 持有者 -->
+    <div class="card u-mini">
+      <span class="dot" id="wlDot" style="color:#4ade80;background:#4ade80"></span>
+      <div class="label">耗电来源</div>
+      <div id="wlVal" class="value green">--</div>
+      <div class="bar"><div id="wlBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
+      <div id="wlDetail" class="detail"></div>
+    </div>
+  </div>
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+      <span style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:6px"><svg class="ic"><use href="#i-chart"/></svg>趋势</span>
+      <div id="histRange" style="display:flex;gap:4px">
+        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="0">实时</button>
+        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="1">1h</button>
+        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="6">6h</button>
+        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="24">24h</button>
+      </div>
+    </div>
+    <canvas id="chart" height="120"></canvas>
+    <!-- v3.2.46: 图例 - 三条曲线含义与量程说明 (纯 HTML/CSS, 不动绘制逻辑) -->
+    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:6px;font-size:11px;color:#94a3b8">
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:3px;border-radius:2px;background:#38bdf8"></span>内存占用 (%)</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:3px;border-radius:2px;background:#f59e0b"></span>CPU 占用 (%)</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #f87171"></span>温度 (℃, 0–80 独立量程)</span>
+    </div>
+    <div id="histInfo" style="font-size:11px;color:#64748b;margin-top:4px"></div>
+  </div>
+
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <h2 style="margin:0"><svg class="ic"><use href="#i-ai"/></svg>AI 诊断</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:4px">
+          <input type="checkbox" id="aiAuto"> 自动分析
+        </label>
+<button id="optBtn" class="btn btn-opt"><svg class="ic"><use href="#i-bolt"/></svg>一键优化</button>
+        <button id="aiBtn" class="btn btn-ai"><svg class="ic"><use href="#i-search"/></svg>立即诊断</button>
+        <button id="localDiagBtn" class="btn btn-ghost"><svg class="ic"><use href="#i-compass"/></svg>本地诊断</button>
+        <!-- v3.2.86: 次要操作收纳 — 5 个 ghost 收成一行小号, 与主操作分层 -->
+        <span class="u-more">
+          <button id="scanCacheBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-broom"/></svg>扫缓存</button>
+          <button id="powersaveBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-battery"/></svg>省电模式</button>
+          <button id="perfBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-rocket"/></svg>性能模式</button>
+          <button id="aiCfgBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-settings"/></svg>配置</button>
+        </span>
+      </div>
+    </div>
+<div id="aiResult" style="margin-top:12px">
+      <!-- v3.2.71: 多轮追问 -->
+            <!-- v3.2.71: 场景化诊断模板 -->
+      <div id="aiTplBar" class="u-tplbar">
+        <span class="u-tpl-lab">诊断场景</span>
+        <button id="aiTplSel" class="u-sel-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+          <span id="aiTplSelLabel">通用</span><span class="u-sel-caret"></span>
+        </button>
+      </div>
+<div id="aiChatBar" class="u-chatbar">
+        <input id="aiChatInput" class="u-ipt-ai" type="text" placeholder="追问：为什么建议这个？ / 上次的建议有效吗？">
+        <button id="aiChatBtn" class="btn btn-ai" style="padding:8px 14px;font-size:13px">追问</button>
+      </div>
+      <div id="aiContent"><div class="empty">未诊断，点击上方按钮开始（需先配置 API key）</div></div>
+    </div>
+  </div>
+
+  <h2 class="u-h2-alert"><svg class="ic"><use href="#i-alert"/></svg>告警<span id="alertHistBadge" style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:6px"></span></h2>
+  <div id="alerts"><div class="empty">暂无告警</div></div>
+  <h2 class="u-h2-ok"><svg class="ic"><use href="#i-module"/></svg>模块状态</h2>
+  <div id="modules"><div class="empty">无</div></div>
+
+  <h2 class="u-h2-neutral"><svg class="ic"><use href="#i-process"/></svg>后台进程 <span id="procCount" class="sub"></span></h2>
+  <div id="procs" class="proc-list"><div class="empty">无</div></div>
+</div>
+
+<div id="aiModal" class="modal" style="display:none">
+  <div class="modal-card">
+    <h3>AI 接口配置</h3>
+    <div class="grid10">
+      <label class="lbl">常用平台（点击快捷填充）
+        <div id="aiPlatformBar" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px">
+          <button type="button" class="btn btn-ghost ai-pl" data-p="deepseek" style="padding:4px 10px;font-size:12px">DeepSeek</button>
+          <button type="button" class="btn btn-ghost ai-pl" data-p="openai" style="padding:4px 10px;font-size:12px">OpenAI</button>
+          <button type="button" class="btn btn-ghost ai-pl" data-p="qwen" style="padding:4px 10px;font-size:12px">通义千问</button>
+          <button type="button" class="btn btn-ghost ai-pl" data-p="zhipu" style="padding:4px 10px;font-size:12px">智谱</button>
+          <button type="button" class="btn btn-ghost ai-pl" data-p="siliconflow" style="padding:4px 10px;font-size:12px">硅基流动</button>
+          <button type="button" class="btn btn-ghost ai-pl" data-p="kimi" style="padding:4px 10px;font-size:12px">Kimi</button>
+          <button type="button" class="btn btn-ghost ai-pl" data-p="openrouter" style="padding:4px 10px;font-size:12px">OpenRouter</button>
+          <button type="button" class="btn btn-ghost ai-pl" data-p="ollama" style="padding:4px 10px;font-size:12px">本地 Ollama</button>
+        </div>
+      </label>
+      <label class="lbl">接口地址（Base URL）
+        <input id="cfgUrl" placeholder="https://api.deepseek.com/v1" class="ipt"></label>
+      <label class="lbl">API Key<span id="cfgKeyHint" style="font-size:11px;opacity:0.7"></span>
+        <input id="cfgKey" type="password" placeholder="sk-..." class="ipt"></label>
+      <label class="lbl">模型名
+        <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;align-items:center">
+          <input id="cfgModel" placeholder="deepseek-chat" class="ipt" style="flex:1;min-width:150px">
+          <button type="button" id="aiFetchModels" class="btn btn-ghost" style="padding:8px 12px;font-size:12px;flex:none">🔄 自动获取</button>
+          <button type="button" id="cfgModelBtn" aria-haspopup="listbox" aria-expanded="false">
+            <span class="m-label" id="cfgModelBtnLabel">选择模型</span><span class="u-sel-caret"></span>
+          </button>
+        </div>
+      </label>
+    </div>
+    <div id="cfgFetchHint" style="font-size:11px;color:#94a3b8;margin-top:2px"></div>
+    <div class="modal-actions">
+      <button id="cfgCancel" class="btn btn-ghost">取消</button>
+      <button id="cfgSave" class="btn btn-ai">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// v3.2.28: 前端运行日志 (ring buffer 500 条), 捕获 onerror/unhandledrejection, 配合右上角日志按钮查看/导出
+// v3.2.47: VER_TAG hoisted before dlog — single source of truth.
+// v3.2.98: wakelock 卡片 + 存储分析行 + 括号平衡防护栏 (collect_loop 侧)
+// v3.2.99: 告警历史 ring buffer + 本地条件触发器
+// v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
+// v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
+// __atriaVer and UI now reference this constant instead of duplicating the literal.
+const VER_TAG = 'v3.4.6';
+const LOG_MAX = 500;
+const logBuf = [];
+// v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)
+const _logDedup = {};
+function dlog(tag, msg) {
+  try {
+    const key = tag + '|' + String(msg).slice(0, 80);
+    const now = Date.now();
+    if (_logDedup[key] && now - _logDedup[key] < 5000) return;
+    _logDedup[key] = now;
+    const line = new Date().toLocaleTimeString() + ' [' + tag + '] ' + String(msg).slice(0, 500);
+    logBuf.push(line);
+    if (logBuf.length > LOG_MAX) logBuf.shift();
+    window.__atriaLogs = logBuf;
+    window.__atriaVer = VER_TAG;
+  } catch (e) {}
+}
+// v3.2.71: 启动诊断探针 — 首屏每一步写时间戳到文件, 黑屏时可直接读现场定位卡在哪一步
+// arria_boot_trace 只追加一条首屏摘要; 用 console+exec 异步写, 不阻塞渲染
+window.__bootT0 = Date.now();
+window.__bootTrace = [];
+function bootStep(name) {
+  try {
+    window.__bootTrace.push(name + '@' + (Date.now() - window.__bootT0) + 'ms');
+    if (window.__atriaExec) {
+      const line = window.__bootTrace.join(' > ');
+      window.__atriaExec("printf '%s\\n' '" + String(line).replace(/'/g, '') + "' >> /data/local/tmp/atria_boot_trace 2>/dev/null");
+    }
+  } catch (e) {}
+}
+window.addEventListener('error', e => dlog('ERROR', (e.message || '未知错误') + ' @ ' + String((e.filename || '') + ':' + (e.lineno || 0))));
+window.addEventListener('unhandledrejection', e => dlog('REJECT', (e.reason && (e.reason.message || e.reason)) || '未处理的 Promise 异常'));
+// v3.2.28: 运行时性能检测 - 低端设备关闭动画 (6 卡片同时 0.4s 过渡 + pulse 在老 GPU 上掉帧)
+let lowPerf = false;
+try {
+  const cores = (navigator && navigator.hardwareConcurrency) || 8;
+  const mem = (navigator && navigator.deviceMemory) || 4;
+  if (cores <= 4 || mem <= 2) lowPerf = true;
+} catch (e) {}
+let execFn = null, toastFn = null, apiMode = 'loading';
+const SEV_TXT = { '高': 'red', '中': 'yellow', '低': 'green' };
+const SEV_CLS = { '高': 'hi', '中': 'md' };
+const memEl = document.getElementById('memPct'), memBar = document.getElementById('memBar');
+const memD = document.getElementById('memDetail');
+const cpuEl = document.getElementById('cpuPct'), cpuBar = document.getElementById('cpuBar');
+const tempEl = document.getElementById('tempVal'), tempBar = document.getElementById('tempBar'), tempD = document.getElementById('tempDetail');
+const battEl = document.getElementById('battVal'), battBar = document.getElementById('battBar'), battD = document.getElementById('battDetail');
+const storeEl = document.getElementById('storeVal'), storeBar = document.getElementById('storeBar'), storeD = document.getElementById('storeDetail');
+const netEl = document.getElementById('netVal'), netBar = document.getElementById('netBar'), netD = document.getElementById('netDetail');
+const wlEl = document.getElementById('wlVal'), wlBar = document.getElementById('wlBar'), wlD = document.getElementById('wlDetail'), wlDot = document.getElementById('wlDot');
+const procEl = document.getElementById('procs'), procCntEl = document.getElementById('procCount');
+const devEl = document.getElementById('dev'), altEl = document.getElementById('alerts'), alertHistBadge = document.getElementById('alertHistBadge');
+const modEl = document.getElementById('modules');
+// v3.2.28: getContext 防御 (部分 WebView 无 canvas/2d 支持, 启动即崩)
+const cv = document.getElementById('chart');
+const ctx = (cv && cv.getContext) ? cv.getContext('2d') : null;
+let history = [], alerts = [], latestData = null;
+// v3.2.34: 网速差值 / 温度历史
+let lastNet = {}, netHistory = [];
+const lastAlertMap = {};
+const lastThermalMap = {};   // v3.2.92: 温度告警节流
+let lastModsKey = '', lastAlertsKey = '', lastProcsKey = '';
+let lastContentFp = '';   // v3.2.28: 内容指纹, 数值未变化时跳过渲染
+// v3.2.28: 本地诊断防重复 (原为函数内局部变量, 按钮读取会 ReferenceError 闪退)
+let lastLocalTime = 0, localBusy = false;
+// v3.2.34: 历史范围 (0=实时, 1/6/24=小时)
+let histHours = 0, histData = null, histLoading = false;
+// v3.2.34: 图表绘制合并标志 (同帧多次 render 只画一次)
+let chartQueued = false;
+// v3.2.34: 数值变化的脉冲动画 (重启动画而非累加)
+// v3.2.28: 重启动画改用 Web Animations API, 不再 void offsetWidth 强制重排 (原实现每帧 6 次布局抖动)
+function pulse(el) {
+  if (!el || lowPerf) return;   // v3.2.28: 低端设备跳过动画
+  try {
+    if (el.animate) {
+      el.animate([
+        { transform: 'scale(1)' },
+        { transform: 'scale(1.06)', offset: 0.4 },
+        { transform: 'scale(1)' }
+      ], { duration: 400, easing: 'ease' });
+      return;
+    }
+  } catch (e) {}
+  if (!el.classList) return;
+  el.classList.remove('pulse');
+  // v3.2.52: 用 requestAnimationFrame 重启动画, 取代 void offsetWidth 强制布局回流
+  requestAnimationFrame(() => { el.classList.add('pulse'); });
+}
+// v3.2.34: 卡片状态点跟随颜色 (绿/黄/红)
+function setDot(dotEl, color) {
+  if (!dotEl || !dotEl || dotEl.dataset.c === color) return;
+  dotEl.dataset.c = color;
+  dotEl.style.color = color; dotEl.style.background = color;
+}
+const memDot = document.getElementById('memDot'), cpuDot = document.getElementById('cpuDot');
+const tempDot = document.getElementById('tempDot'), battDot = document.getElementById('battDot');
+const storeDot = document.getElementById('storeDot'), netDot = document.getElementById('netDot');
+// v3.2.28: 模块路径动态适配 (SUPATCH/Magisk: /data/adb/modules, APatch: /data/adb/ap/modules)
+const MOD_PATHS = ['/data/adb/modules/atria_monitor', '/data/adb/ap/modules/atria_monitor', '/data/adb/ksu/modules/atria_monitor'];
+const MOD_PATH = (typeof ksu !== 'undefined' && ksu.modulePath) ? String(ksu.modulePath).replace(/\/$/, '') : '';
+const AI_CONF = (MOD_PATH || MOD_PATHS[0]) + '/ai.conf';
+const AI_CONF_PERSIST = '/data/adb/atria_ai.conf';
+const OPT_PATH = (MOD_PATH || MOD_PATHS[0]) + '/scripts/optimize.sh';
+const COLLECT_CMD = 'sh ' + (MOD_PATH || MOD_PATHS[0]) + '/scripts/collect.sh';
+// v3.2.34: 扩充白名单 - 缓存清理 / 自启管理 / 省电 / 性能调校
+const ACT_OK = /^(kill [1-9][0-9]{0,5}|am force-stop [a-zA-Z0-9._-]+|drop_caches|clean_cache [a-zA-Z0-9._-]+|scan_cache \w+|autostart (block|unblock) [a-zA-Z0-9._-]+|powersave (on|off)|perf (performance|powersave|schedutil|interactive)|vm swappiness (?:[0-9]|[1-9][0-9]|1[0-9][0-9]|200)|vm restore|vm compact|gpu cap [0-9]|gpu restore|freeze [a-zA-Z0-9._-]+|unfreeze [a-zA-Z0-9._-]+|module (enable|disable) [a-zA-Z0-9._-]+)$/;
+// v3.2.71: kill 动作黑名单 — 系统关键进程即使 pid 对得上也拒绝 (模型可能从 top_processes 里挑 system_server)
+const KILL_GUARD = ['system_server', 'zygote', 'surfaceflinger', 'com.android.systemui',
+  'com.android.launcher', 'com.android.phone', 'com.android.settings', 'android',
+  'kernel', 'kthreadd', 'init', 'servicemanager', 'vendor.mediacodec',
+  // v3.2.59: 用户助手进程也保护 — 杀掉会中断当前对话; 输入法杀掉会断开键盘
+  'com.ai.assistance.operit', 'com.iflytek.inputmethod',
+  // v3.2.56: 补 AOSP 通用输入法包名 — 原只有作者设备的讯飞, 其他设备前端判定会漏
+  'com.android.inputmethod',
+  // v3.2.71: 面板宿主本身 — freeze/kill 会导致面板直接消失
+  'io.github.a13e300.ksuwebui'];
+function _pidName(pid) {
+  try {
+    const ps = (latestData && latestData.processes) || [];
+    for (let i = 0; i < ps.length; i++) {
+      if (String(ps[i].pid) === String(pid)) return String(ps[i].name || '');
+    }
+  } catch (e) {}
+  return '';
+}
+function sanitizeAction(a) {
+  const s = String(a == null ? '' : a).trim();
+  if (!ACT_OK.test(s)) return null;
+  // v3.2.71: kill 动作核对进程名, 关键进程拒绝
+  if (s.lastIndexOf('kill ', 0) === 0) {
+    const pid = s.slice(5).trim();
+    const nm = _pidName(pid).toLowerCase();
+    if (!nm) return s;   // 拿不到名字时放行, optimize.sh 侧还有保护名单兜底
+    for (let i = 0; i < KILL_GUARD.length; i++) {
+      if (nm === KILL_GUARD[i] || nm.indexOf(KILL_GUARD[i]) === 0) return null;
+    }
+  }
+  // v3.2.71: am force-stop 同样过 KILL_GUARD — 原 force-stop 只查 ACT_OK 正则,
+  // com.android.systemui 等系统包名格式合法会被放行, 仅靠后端 PKG_PROTECTED 兜底
+  if (s.lastIndexOf('am force-stop ', 0) === 0) {
+    const pkg = s.slice(14).trim().toLowerCase();
+    for (let i = 0; i < KILL_GUARD.length; i++) {
+      if (pkg === KILL_GUARD[i] || pkg.indexOf(KILL_GUARD[i]) === 0) return null;
+    }
+  }
+  // v3.2.71: freeze 同样过 KILL_GUARD — 冻结系统应用会导致开不了机, 必须前端拦
+  if (s.lastIndexOf('freeze ', 0) === 0) {
+    const pkg = s.slice(7).trim().toLowerCase();
+    for (let i = 0; i < KILL_GUARD.length; i++) {
+      if (pkg === KILL_GUARD[i] || pkg.indexOf(KILL_GUARD[i]) === 0) return null;
+    }
+  }
+  return s;
+}
+// v3.1.9: AI 配置字段白名单, 拼接 root shell 命令前必须过校验 (S3 修复)
+const URL_OK = /^https?:\/\/[A-Za-z0-9.\-]+(:[0-9]+)?(\/[A-Za-z0-9.\-/_]*)?$/;
+const KEY_OK = /^[A-Za-z0-9_\-]{8,128}$/;
+// v3.3.7: 常用平台预设 — 点击快捷填充 base_url / key 提示 / 推荐模型 / 是否需要 key
+// 模型列表为公开常识性默认值, 仅为方便填写; 最终以用户选择或自动获取为准
+const AI_PLATFORMS = {
+  deepseek:    { url: 'https://api.deepseek.com/v1',         hint: 'sk-...',          model: 'deepseek-chat',       needKey: true  },
+  openai:      { url: 'https://api.openai.com/v1',           hint: 'sk-proj-...',     model: 'gpt-4o-mini',         needKey: true  },
+  qwen:        { url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', hint: 'sk-...', model: 'qwen-plus',     needKey: true  },
+  zhipu:       { url: 'https://open.bigmodel.cn/api/paas/v4', hint: '...',            model: 'glm-4-flash',        needKey: true  },
+  siliconflow: { url: 'https://api.siliconflow.cn/v1',       hint: 'sk-...',          model: 'deepseek-ai/DeepSeek-V3', needKey: true },
+  kimi:        { url: 'https://api.moonshot.cn/v1',          hint: 'sk-...',          model: 'moonshot-v1-8k',      needKey: true  },
+  openrouter:  { url: 'https://openrouter.ai/api/v1',        hint: 'sk-or-v1-...',    model: 'deepseek/deepseek-chat', needKey: true },
+  ollama:      { url: 'http://127.0.0.1:11434/v1',           hint: '本地无需 key',     model: 'qwen2.5:7b',         needKey: false }
+};
+// v3.3.7: 拉取平台模型列表 (fetch 优先, 失败回退 curl — 同 callAiRaw 双路设计)
+// 返回模型 id 数组; 平台不支持 /models 或网络故障时抛错, 调用方显示提示
+async function fetchModelList(baseUrl, apiKey) {
+  const url = String(baseUrl || '').replace(/\/+$/, '') + '/models';
+  if (!URL_OK.test(url)) throw new Error('接口地址不合法');
+  let out;
+  try {
+    const resp = await fetchWithTimeout(url, {
+      method: 'GET',
+      headers: apiKey ? { 'Authorization': 'Bearer ' + apiKey } : {}
+    }, 10000);
+    out = await resp.text();
+  } catch (e) {
+    // WebView 禁外网 fetch 时回退 curl (callAiRaw 同款兜底)
+    // v3.4.0: apiKey 经 escSh 转义 — 含单引号会闭合 shell 引号注入命令 (root 通道)
+    // v3.4.1: url 也包进单引号 — escSh 只转义引号, 裸拼对 ;/$()/` 仍可注入
+    const keyArg = apiKey ? " -H 'Authorization: Bearer " + escSh(apiKey) + "'" : '';
+    const cmd = "curl -s -m 10 -X GET '" + escSh(url) + "'" + keyArg;
+    out = await execWithTimeout(cmd, 15000);
+  }
+  let data;
+  try { data = JSON.parse(out); }
+  catch (e) {
+    const s2 = out.indexOf('{'), e2 = out.lastIndexOf('}');
+    if (s2 < 0 || e2 <= s2) throw new Error('返回非 JSON');
+    data = JSON.parse(out.slice(s2, e2 + 1));
+  }
+  if (data.error) throw new Error(data.error.message || '接口返回错误');
+  const arr = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
+  const ids = arr.map(m => m.id || m.name).filter(x => typeof x === 'string' && x);
+  if (!ids.length) throw new Error('模型列表为空');
+  return ids;
+}
+function sanitizeAiConfig(cfg) {
+  if (!cfg || typeof cfg !== 'object') return null;
+  const out = {};
+  const url = String(cfg.base_url || 'https://api.deepseek.com/v1').trim();
+  const key = String(cfg.api_key || '').trim();
+  const model = String(cfg.model || 'deepseek-chat').trim();
+  if (!URL_OK.test(url)) return { error: '接口地址格式不合法（仅允许 http(s)://主机[:端口][/路径]）' };
+  if (key && !KEY_OK.test(key)) return { error: 'API Key 格式不合法（仅允许字母数字与 _ -，8-128 位）' };
+  out.base_url = url.replace(/\/+$/, '');
+  out.api_key = key;
+  out.model = model.slice(0, 64);
+  return out;
+}
+async function execAction(rawAct) {
+  const act = sanitizeAction(rawAct);
+  if (!act) return { action: String(rawAct), status: 'reject', msg: '非白名单动作，已拒绝' };
+  try {
+    const out = await execWithTimeout("sh " + OPT_PATH + " exec '" + escSh(act) + "'", 30000);
+    const data = JSON.parse(out);
+    return (data.results || [])[0] || { action: act, status: 'fail', msg: '执行无返回' };
+  } catch (e) {
+    return { action: act, status: 'fail', msg: String(e.message || e).slice(0, 80) };
+  }
+}
+let aiConfig = null, lastAiTime = 0, aiConfigLoadedAt = 0;
+let _renderRaf = 0;   // v3.2.29: rAF 渲染调度句柄
+let modalOpen = false;
+// v3.4.2: 点击遮罩空白关闭弹窗 — 只在 target===currentTarget 时触发 (点中卡片内容不误关)
+// 每个弹窗各自的关闭逻辑 (回写 modalOpen / 做清理), 此处只负责"调对应的关"
+function _closeModalById(id) {
+  var m = document.getElementById(id);
+  if (!m || m.style.display === 'none') return;
+  m.style.display = 'none';
+  modalOpen = false;
+}
+// v3.4.3: 绑定须等 DOM 解析完 — logModal/settingsModal 的 div 在本 script 之后,
+// 直接 querySelectorAll 会漏掉它们 (v3.4.2 的 bug: 只有 aiModal 绑上)
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.modal').forEach(function (m) {
+    m.addEventListener('click', function (e) {
+      if (e.target !== e.currentTarget) return;   // 点中 modal-card 子元素, 忽略
+      _closeModalById(m.id);
+    });
+  });
+});
+let aiBusy = false;
+const escSh = s => String(s).replace(/'/g, "'\\''");
+
+// v3.2.28: exec 通道变更时同步暴露 (原 2s 轮询是无谓的主线程开销)
+  function buildFallbackExec() {
+  // v3.1.9: fallback 仅用于"读取状态", 写类调用直接拒绝 (I4: 原实现忽略命令恒返回状态 JSON,
+  // 导致 AI 诊断/一键优化渲染出 undefined% 的垃圾结果)
+  // v3.2.34: 修正原 I4 设计缺陷 - readStatus 忽略 cmd 参数恒返回状态 JSON,
+  // 导致 AI/一键优化拿到 undefined% 的垃圾数据; 且经 window.ksuFallbackExec 回调会无限递归
+  const readStatus = async (cmd) => {
+    // 有 root 通道时: 真正执行命令
+    if (window.ksuFallbackExec) return await window.ksuFallbackExec(cmd);
+    // 无通道时: 仅当命令就是读状态文件才用 file:// fetch 兜底
+    if (cmd && cmd.indexOf(STATUS_JSON.replace(/^file:\/\//, '')) >= 0) {
+      try {
+        const resp = await fetch(STATUS_JSON, { cache: 'no-store' });
+        const t = await resp.text();
+        if (t && t.trim()) return t;
+      } catch (e) {}
+    }
+    throw new Error('status json unavailable');
+  };
+  // v3.2.34: fallback 允许只读类命令; 写类 (echo>/curl/rm/touch) 仍拒绝
+  const RO_OK = /^\s*(cat|sh|tail|head|df|ps|du|ls|grep|awk|sed|wc)\s/;
+  return async (cmd) => {
+    if (typeof cmd !== 'string' || !RO_OK.test(cmd)) {
+      throw new Error('未获得 root 执行通道（fallback 模式仅支持只读命令）');
+    }
+    return await readStatus(cmd);
+  };
+}
+
+// v3.2.34: 加载历史 jsonl 尾部, 画长时间趋势
+async function loadHistory(hours) {
+  if (histLoading) return;
+  histLoading = true;
+  const el = document.getElementById('histInfo');
+  if (el) el.textContent = '⏳ 加载历史...';   // v3.2.28: 元素缺失时不崩
+  try {
+    // v3.2.94: fetch 直读镜像文件 (绕开 exec 单行截断, 只返回首行)
+    let out = '';
+    try {
+      const hr = await fetchWithTimeout('file:///data/local/tmp/atria_history.jsonl', { cache: 'no-store' }, 4000);
+      out = await hr.text();
+    } catch (e) {}
+    // v3.2.94: exec 读原始文件 (单行截断仍有限, 但能拿到部分数据)
+    if (!out || !out.trim()) {
+      try { out = await execFn('tail -c 200000 /data/adb/atria_history.jsonl 2>/dev/null'); } catch (e) {}
+    }
+    // v3.2.94: base64 分块传输 (绕开 exec 单行截断, 与 图标/base64 同一已验证方案)
+    if (!out || out.split('\n').length < 50) {
+      try {
+        const _b64 = String(await execFn('tail -c 300000 /data/local/tmp/atria_history.jsonl 2>/dev/null | base64 -w0') || '').replace(/\s+/g, '');
+        if (_b64 && _b64.length % 4 === 0 && _b64.length > 100) {
+          out = decodeURIComponent(escape(atob(_b64)));
+        }
+      } catch (e) {}
+    }
+    if (!out || !out.trim()) { if (el) el.textContent = '暂无历史数据（约 1 分钟后生成）'; histData = null; return; }
+    const now = Math.floor(Date.now() / 1000);
+    const from = now - hours * 3600;
+    const rows = [];
+    out.split('\n').forEach(line => {
+      if (!line.trim()) return;
+      try {
+        const r = JSON.parse(line);
+        if (r.ts && r.ts >= from) rows.push(r);
+      } catch (e) {}
+    });
+    // v3.2.93: 200KB 窗口内有效行不足时, 回退扩大到 600KB 再试一次 (零值行密集时救回数据)
+    if (rows.length < 2) {
+      try {
+        const out2 = await execFn('tail -c 600000 /data/adb/atria_history.jsonl 2>/dev/null');
+        rows = [];
+        (out2 || '').split('\n').forEach(line => {
+          if (!line.trim()) return;
+          try {
+            const r = JSON.parse(line);
+            if (r.ts && r.ts >= from) rows.push(r);
+          } catch (e) {}
+        });
+      } catch (e) {}
+    }
+    if (rows.length < 2) { if (el) el.textContent = '该时间范围内无足够数据（' + rows.length + ' 条）'; histData = null; drawChart(); return; }
+    histData = rows;
+    if (el) el.textContent = '已加载 ' + rows.length + ' 条 (' + new Date(rows[0].ts * 1000).toLocaleTimeString() + ' ~ ' + new Date(rows[rows.length - 1].ts * 1000).toLocaleTimeString() + ')';
+    drawChart();
+  } catch (e) {
+    if (el) el.textContent = '历史加载失败: ' + String(e.message || e).slice(0, 40);
+    histData = null;
+  } finally { histLoading = false; }
+}
+function withTimeout(p, ms) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej('timeout'), ms))]);
+}
+async function loadApi() {
+  const g = (typeof ksu !== 'undefined') ? ksu : (typeof ksustub !== 'undefined') ? ksustub : (typeof apatch !== 'undefined') ? apatch : null;
+  // v3.2.76: ksu.exec 实测同步阻塞 JS 线程 (探针: collect.sh 418ms / curl 14s+, 期间定时器不触发)
+  // 对策: 调用前让出事件循环, 排队的点击/渲染事件先跑完再进入 native 阻塞
+  if (g && typeof g.exec === 'function') {
+    execFn = async (cmd) => {
+      // v3.2.75: exec 桥接阻塞探针 — 命令执行期间若定时器无法触发, 说明 JS 线程被 native 同步阻塞
+      let _tok = false;
+      const _tid = setTimeout(() => { _tok = true; }, 50);
+      const _t0 = Date.now();
+      let _r;
+      try { await new Promise(r => setTimeout(r, 0)); _r = await g.exec(cmd); }
+      finally { clearTimeout(_tid); }
+      const _dur = Date.now() - _t0;
+      if (!_tok && _dur > 100) {
+        try { dlog('exec_block', _dur + 'ms 定时器未触发=>JS线程被同步阻塞: ' + String(cmd).slice(0, 60)); } catch (_) {}
+      } else if (_dur > 500) {
+        try { dlog('exec_block', _dur + 'ms (异步等待, 未阻塞): ' + String(cmd).slice(0, 60)); } catch (_) {}
+      }
+      return (_r && typeof _r === 'object') ? _r.stdout : _r;
+    };
+    window.ksuFallbackExec = execFn;
+    window.__atriaExec = execFn;   // v3.2.28: 同步暴露给日志弹窗
+    toastFn = g.toast || null;
+    return 'global injected';
+  }
+  execFn = buildFallbackExec();
+  withTimeout(import('https://esm.sh/kernelsu'), 2000).then(ksu => {
+    if (ksu && typeof ksu.exec === 'function') {
+      execFn = async (cmd) => {
+        let _tok = false;
+        const _tid = setTimeout(() => { _tok = true; }, 50);
+        const _t0 = Date.now();
+        let _r2;
+        try { await new Promise(r => setTimeout(r, 0)); _r2 = await ksu.exec(cmd); }
+        finally { clearTimeout(_tid); }
+        const _dur2 = Date.now() - _t0;
+        if (!_tok && _dur2 > 100) {
+          try { dlog('exec_block', _dur2 + 'ms 定时器未触发=>JS线程被同步阻塞: ' + String(cmd).slice(0, 60)); } catch (_) {}
+        } else if (_dur2 > 500) {
+          try { dlog('exec_block', _dur2 + 'ms (异步等待, 未阻塞): ' + String(cmd).slice(0, 60)); } catch (_) {}
+        }
+        const r = _r2;
+        const o = (r && typeof r === 'object') ? r.stdout : r;
+        if (r && typeof r === 'object' && r.errno !== undefined && r.errno !== 0) throw new Error('exec errno=' + r.errno);
+        return o;
+      };
+      toastFn = ksu.toast || null;
+      window.__atriaExec = execFn;   // v3.2.28: ESM 分支也暴露
+      apiMode = 'kernelsu (ESM)';
+    }
+  }).catch(() => {});
+  return 'file fallback';
+}
+
+let gridCv = null;
+function sizeCanvas() {
+  try {
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = (cv.clientWidth || 300) * dpr; cv.height = (cv.clientHeight || 120) * dpr;   /* v3.3.6: 高度随 CSS 自适应 */
+    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    gridCv = null;
+  } catch (e) { try { dlog('sizeCanvas', String(e.message || e).slice(0, 100)); } catch (_) {} }
+}
+// v3.2.43: resize 合并到 rAF, 避免连续 resize 反复重建画布与网格缓存
+let _sizeRaf = 0;
+function sizeCanvasScheduled() { if (_sizeRaf) return; _sizeRaf = requestAnimationFrame(() => { _sizeRaf = 0; sizeCanvas(); }); }
+sizeCanvas(); window.addEventListener('resize', sizeCanvasScheduled);
+
+// v3.2.28: 整体 try 保护 — canvas 2d 上下文获取失败 (旧 WebView/内存不足) 不能中断渲染
+// v3.2.28: 连续失败后退避 (原实现每帧重试, 在 canvas 不可用的设备上每帧抛异常+写日志)
+let _chartFails = 0;
+function drawChart() {
+  if (_chartFails > 3) return;   /* 连续失败 4 次后停止绘制, 避免每帧空转 */
+  try { _drawChartImpl(); _chartFails = 0; }
+  catch (e) { _chartFails++; try { dlog('drawChart', String(e.message || e).slice(0, 120)); } catch (_) {} }
+}
+function _drawChartImpl() {
+  const w = cv.clientWidth, h = cv.clientHeight || 120;   /* v3.3.6: 与 CSS 显示高一致, 原来恒 120 被 160px CSS 拉伸变形 */
+  // v3.2.34: 网格只在首次绘制一次, resize 时 sizeCanvas 已重建 (drawImage 缓存位图是 GPU blit, 已足够快)
+  // v3.2.92: 网格淡化为 半透明细线 + 竖向辅助虚线, 精致不喧宾夺主
+  if (!gridCv || gridCv.width !== cv.width) {
+    gridCv = document.createElement('canvas');
+    gridCv.width = cv.width; gridCv.height = cv.height;
+    const g = gridCv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.lineWidth = 1;
+    g.font = '10px sans-serif';
+    // 横向网格 + 左侧刻度 (0/25/50/75/100)
+    for (let i = 0; i <= 4; i++) {
+      const y = (h - 16) * i / 4 + 6;
+      g.strokeStyle = i === 4 ? 'rgba(148,163,184,0.10)' : 'rgba(148,163,184,0.13)';
+      g.beginPath(); g.moveTo(30, y); g.lineTo(w - 6, y); g.stroke();
+      g.fillStyle = 'rgba(148,163,184,0.55)';
+      g.fillText((100 - i * 25) + '', 4, y + 3);
+    }
+    // v3.2.92: 3 条竖向辅助虚线, 图表节奏感
+    g.setLineDash([3, 5]);
+    g.strokeStyle = 'rgba(148,163,184,0.08)';
+    for (let j = 1; j <= 3; j++) {
+      const x = 30 + (w - 40) * j / 4;
+      g.beginPath(); g.moveTo(x, 6); g.lineTo(x, h - 16); g.stroke();
+    }
+    g.setLineDash([]);
+  }
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(gridCv, 0, 0, w, h);
+  // v3.2.34: 历史模式用 histData (来自 jsonl), 实时模式用 history
+  const srcRaw = histData || history;
+  // v3.2.28: 降采样 - 超过 120 点时抽稀到 ~60 点, 老设备 GPU 绘制压力减半
+  let step = 1;
+  if (srcRaw.length > 120) step = Math.ceil(srcRaw.length / 60);
+  const src = step > 1 ? srcRaw.filter((_, i) => i % step === 0 || i === srcRaw.length - 1) : srcRaw;
+  if (src.length < 1) return;
+  const n = src.length;
+  const px = i => 30 + (w - 40) * (n === 1 ? 0 : i / (n - 1));
+  const py = v => 6 + (100 - Math.min(100, Math.max(0, v))) * (h - 22) / 100;
+  const n1 = n - 1, w40 = w - 40, h22 = h - 22;
+  // v3.2.92: 线宽微调 + 圆角端点, 曲线更柔
+  const series = [
+    { key: 'mem', color: '#38bdf8', lw: 2.25, dash: [] },
+    { key: 'cpu', color: '#f59e0b', lw: 2.25, dash: [] },
+    { key: 'temp', color: '#f87171', lw: 1.75, dash: [4, 3],
+      py: v => 6 + (80 - Math.min(80, Math.max(0, v || 0))) * h22 / 80 }
+  ];
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let s2 = 0; s2 < 3; s2++) {
+    const ser = series[s2], f = ser.py || py;
+    // v3.2.91: 先算 всех 点坐标一次 (面积 + 线 + 端点 复用)
+    const pts = [];
+    for (let i = 0; i < n; i++) pts.push([30 + (n === 1 ? 0 : w40 * i / n1), f(src[i][ser.key] || 0)]);
+    const baseY = h - 10;
+    // v3.2.92: 面积渐变填充 (仅 mem/cpu 主角曲线, temp 虚线量程不同不填)
+    if (s2 < 2) {
+      const grad = ctx.createLinearGradient(0, 6, 0, baseY);
+      grad.addColorStop(0, ser.color + '2e');   // 顶部 ~18% alpha
+      grad.addColorStop(1, ser.color + '00');   // 底部全透
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], baseY);
+      ctx.lineTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < n; i++) {
+        const p0 = pts[i - 1], p1 = pts[i];
+        const mx = (p0[0] + p1[0]) / 2;
+        ctx.quadraticCurveTo(p0[0], p0[1], mx, (p0[1] + p1[1]) / 2);
+      }
+      ctx.lineTo(pts[n - 1][0], pts[n - 1][1]);
+      ctx.lineTo(pts[n - 1][0], baseY);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // v3.2.92: 平滑曲线 (二次贝塞尔, 控制点取相邻点中点 — 曲线穿过每个数据点, 点少时退化为直线)
+    ctx.strokeStyle = ser.color; ctx.lineWidth = ser.lw; ctx.setLineDash(ser.dash);
+    // v3.2.92: 轻微同色发光, 数据线有光晕质感 (shadowBlur 在 WebView 上成本可控)
+    ctx.shadowColor = ser.color; ctx.shadowBlur = s2 < 2 ? 7 : 5;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < n; i++) {
+      const p0 = pts[i - 1], p1 = pts[i];
+      const mx = (p0[0] + p1[0]) / 2;
+      ctx.quadraticCurveTo(p0[0], p0[1], mx, (p0[1] + p1[1]) / 2);
+    }
+    if (n > 1) ctx.lineTo(pts[n - 1][0], pts[n - 1][1]);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // v3.2.92: 最新数据点 - 发光圆点, 实时脉搏
+    const lp = pts[n - 1];
+    ctx.fillStyle = ser.color;
+    ctx.shadowColor = ser.color; ctx.shadowBlur = 9;
+    ctx.beginPath(); ctx.arc(lp[0], lp[1], n > 4 ? 3 : 2.4, 0, 6.2832); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  ctx.setLineDash([]);
+  ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+}
+
+// v3.2.28: WebView 时区 API 容错 (某些设备 toLocaleTimeString 抛 RangeError 导致渲染中断)
+function safeTime() { try { return new Date().toLocaleTimeString(); } catch (e) { try { return new Date().toISOString().slice(11, 19); } catch (e2) { return '--:--:--'; } } }
+function esc(s) { return String(s == null ? '' : s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+// v3.2.34: 本地规则诊断引擎 - 无需 AI/网络/API key, 输出与 AI 同构:
+//   { summary, risk_level, suggestions:[], actions:[], sources:[] }
+// 规则按"危害度"排序, 命中即收集; 动作经过 optimize.sh 白名单 + 保护名单双重校验
+function diagnoseLocal(d) {
+  const sug = [], acts = [], src = [];
+  let sevScore = 0;   // 0 低 / 1 中 / 2 高
+
+  // v3.2.71: 趋势感知 — 从 history 数组算斜率, 区分"持续高位"与"刚飙升"
+  // 采集周期约 4s, 取最近 15 条约 60s 的上升速率
+  const _h = (Array.isArray(history) && history.length >= 2) ? history.slice(-15) : [];
+  let memRate = 0, tempRate = 0;
+  if (_h.length >= 2) {
+    const span = Math.max(1, _h.length - 1);
+    memRate = ((_h[_h.length - 1].mem || 0) - (_h[0].mem || 0)) / span;   // 点/周期
+    tempRate = ((_h[_h.length - 1].temp || 0) - (_h[0].temp || 0)) / span;
+  }
+
+  // ---- 内存 ----
+  const pct = +((d.mem || {}).percent || 0);
+  const memTotal = +((d.mem || {}).total_mb || 0);
+  if (pct > 85) {
+    sevScore = 2;
+    // v3.2.71: 快速上升 = 泄漏/突发, urgency 高; 平稳 = 常态
+    const _fast = memRate > 0.8;   // 每周期 +0.8pt, 约 60s 内 +12pt
+    sug.push('内存占用 ' + pct + '%，接近 OOM 阈值，建议结束后台应用或重启设备' + (_h.length >= 2
+      ? (_fast ? '（近 1 分钟快速上升 ' + (memRate * _h.length).toFixed(0) + 'pt，疑似泄漏/突发）' : '（近期平稳，属持续高位）') : ''));
+    src.push('内存 ' + pct + '%');
+    (d.processes || []).slice(0, 3).forEach(p => {
+      if (p.rss_mb > 300) acts.push('kill ' + p.pid);
+    });
+  } else if (pct > 70) {
+    if (sevScore < 1) sevScore = 1;
+    // v3.2.97: PSI 感知 - same avg10 > 30 = real stall, 才值得 drop_caches/kill
+    const _psi = (d.kernel || {}).psi || null;
+    const _stall = _psi ? +(_psi.s10 || 0) : 0;
+    sug.push('内存占用 ' + pct + '%，压力上升，关注后台进程' + (_stall > 30 ? '（PSI 阻塞 ' + _stall.toFixed(0) + '%，存在真实卡顿）' : ''));
+    src.push('内存 ' + pct + '%');
+  }
+
+  // ---- 温度 ----
+  // v3.2.28: 排除 batt/battery 类 zone (部分设备实际测充电芯片, 60-95°C 是常态)
+  const SOC_ONLY = { cpu: 1, gpu: 1, dsp: 1, modem: 1, skin: 1, charger:1, wifi: 1, other: 1, camera: 1, chipset: 1 };
+  let tempMax = 0, tempZone = '', thermalCount = 0;
+  (d.thermal || []).forEach(z => {
+    if (!SOC_ONLY[String(z.label || '')]) return;
+    const t = +(z.temp || 0);
+    if (t > tempMax) { tempMax = t; tempZone = String(z.label || ''); thermalCount = +(z.count || 1); }
+  });
+  // v3.2.71: 温度阈值走共享表 TEMP_RULES (充电芯片 55/65, 皮肤 40/45, 其余 45/55)
+  {
+    const _ruleT = _tempRule(tempZone);
+    if (tempMax > _ruleT.high) {
+      sevScore = 2;
+      // v3.2.71: 趋势修饰 — 快速上升说明正在恶化, 平稳属持续高位
+      const _trendSuffix = _h.length >= 2
+        ? (tempRate > 0.5 ? '（近 1 分钟上升 ' + (tempRate * _h.length).toFixed(1) + '°C，正在恶化）'
+           : tempRate < -0.5 ? '（近 1 分钟回落 ' + (-(tempRate * _h.length)).toFixed(1) + '°C，正在恢复）' : '（近期高位平稳）')
+        : '';
+      sug.push('温度 ' + tempZone + ' 达 ' + tempMax.toFixed(1) + '°C' + (thermalCount > 1 ? ' (' + thermalCount + ' 个传感器)' : '') + '，已过热，可能触发降频保护；暂停高负载应用' + _trendSuffix);
+      src.push('温度 ' + tempMax.toFixed(1) + '°C');
+    } else if (tempMax > _ruleT.mid) {
+      if (sevScore < 1) sevScore = 1;
+      sug.push('温度 ' + tempZone + ' ' + tempMax.toFixed(1) + '°C 偏高' + (tempZone === 'charger' ? '（充电中发热属快充常态）' : '') + '，留意高负载任务');
+      src.push('温度 ' + tempMax.toFixed(1) + '°C');
+    }
+  }
+
+  // ---- 电池 ----
+  const b = d.battery || {};
+  if (b.capacity != null) {
+    const cap = +b.capacity;
+    if (cap < 20 && b.status !== 'Charging' && b.status !== 'Full') {
+      if (sevScore < 1) sevScore = 1;
+      sug.push('电量 ' + cap + '% 偏低，准备充电');
+      src.push('电量 ' + cap + '%');
+    }
+    // v3.2.28: 电池温度阈值 45→50 (45°C 在快充/游戏时常见, 属正常; >50 才需处理)
+    if (b.temperature && +b.temperature > 50) {
+      sevScore = 2;
+      sug.push('电池温度 ' + (+b.temperature).toFixed(1) + '°C 过热，充电可能受限；暂停充电或高负载应用');
+      src.push('电池温度 ' + (+b.temperature).toFixed(1) + '°C');
+    }
+  }
+
+  // ---- 存储 ----
+  const st = (Array.isArray(d.storage) ? d.storage : []).find(x => x.mount === '/data' || x.mount === '/storage/emulated') || (Array.isArray(d.storage) ? d.storage : [])[0];
+  if (st && st.percent != null) {
+    const sp = +st.percent;
+    if (sp > 90) {
+      sevScore = 2;
+      sug.push('存储占用 ' + sp + '%（剩余 ' + (+st.free_gb).toFixed(1) + 'GB），需清理缓存或大文件');
+      src.push('存储 ' + sp + '%');
+    } else if (sp > 75) {
+      if (sevScore < 1) sevScore = 1;
+      sug.push('存储占用 ' + sp + '%，留意剩余空间');
+      src.push('存储 ' + sp + '%');
+    }
+  }
+
+  // ---- 日志: 崩溃 / OOM / ANR / 特定关键字 ----
+  const crashCount = { oom: 0, fatal: 0, anr: 0 };
+  (d.logcat || []).forEach(line => {
+    const raw = String(line.msg || '');
+    // v3.3.2: 噪声日志预过滤 — 应用把含 fatal/anr 字样的文本打印进日志
+    // (HTTP 请求体、分块传输、AI prompt 回显) 时, 子串匹配会把它们当真崩溃
+    // 特征: "Request body: Part N/M", okHttp/okio 分块, 诊断 prompt 自身
+    const _low = raw.toLowerCase();
+    if (_low.indexOf('request body') >= 0 || _low.indexOf('part ') >= 0 ||
+        _low.indexOf('okhttp') >= 0 || _low.indexOf('okio') >= 0) return;
+    if (_low.indexOf('skin') >= 0 && _low.indexOf('温度') >= 0) return;
+    const t = _low.replace(/ /g, '');
+    if (t.includes('outofmemoryerror')) crashCount.oom++;
+    // v3.3.2: fatal 改词边界 + androidruntime 需带异常特征, 排除纯文本回显
+    if (/\bfatal\b/i.test(raw) || /\bandroidruntime\b.*exception/i.test(raw) ||
+        /exception/i.test(raw) && /androidruntime/i.test(raw)) crashCount.fatal++;
+    // v3.2.71: 词边界匹配, 排除 getLanRtt 类假阳性; 计入 Input dispatching timed out
+    if (/\banr\b/i.test(raw) || /input\s+dispatching\s+timed\s+out/i.test(raw)) crashCount.anr++;
+  });
+  if (crashCount.oom > 0) {
+    sevScore = 2;
+    sug.push('日志中出现 OOM 错误 x' + crashCount.oom + '，存在内存泄漏，建议释放内存');
+    src.push('OOM x' + crashCount.oom);
+  }
+  if (crashCount.fatal > 0) {
+    sevScore = 2;
+    sug.push('日志中出现应用崩溃 x' + crashCount.fatal + '，查看崩溃栈，更新应用');
+    src.push('崩溃 x' + crashCount.fatal);
+  }
+  if (crashCount.anr > 0) {
+    if (sevScore < 1) sevScore = 1;
+    sug.push('日志中出现 ANR 卡顿 x' + crashCount.anr + '，检查主线程耗时操作');
+    src.push('ANR x' + crashCount.anr);
+  }
+
+  // ---- 大内存进程 ----
+  const heavies = (d.processes || []).filter(p => p.rss_mb > 500).slice(0, 3);
+  heavies.forEach(p => {
+    if (sevScore < 1) sevScore = 1;
+    sug.push(p.name + ' 占用 ' + p.rss_mb + 'MB，如非必要可结束');
+    src.push(p.name + ' ' + p.rss_mb + 'MB');
+  });
+  // 高内存场景追加清理动作
+  if (sevScore >= 1 && pct > 70 && heavies.length) {
+    acts.push('drop_caches');
+  }
+
+  // ---- 网络: 无连接 ----
+  if (d.net && d.net.length === 0) {
+    if (sevScore < 1) sevScore = 1;
+    sug.push('无活动网络接口，检查 WiFi/移动数据');
+    src.push('无网络');
+  }
+
+  // ---- 组装结论 ----
+  const risk = sevScore >= 2 ? '高' : sevScore === 1 ? '中' : '低';
+  let summary;
+  if (src.length === 0) {
+    summary = '所有指标均在正常范围' + (memTotal ? '（内存 ' + pct + '% / ' + memTotal + 'MB）' : '');
+  } else {
+    summary = '发现 ' + src.length + ' 项问题：' + src.join('、');
+  }
+  // 动作去重 + 白名单预筛 (真正执行仍由 optimize.sh 二次校验)
+  const seen = new Set();
+  const safeActs = [];
+  acts.forEach(a => {
+    if (!seen.has(a) && sanitizeAction(a)) { seen.add(a); safeActs.push(a); }
+  });
+  if (!sug.length) sug.push('设备运行正常，继续保持');
+  return { summary, risk_level: risk, suggestions: sug.slice(0, 6), actions: safeActs.slice(0, 5), _local: true };
+}
+// v3.2.34: 字节速率格式化
+function fmtRate(bytesPerSec) {
+  if (!isFinite(bytesPerSec) || bytesPerSec < 0) return '--';
+  if (bytesPerSec >= 1048576) return (bytesPerSec / 1048576).toFixed(1) + ' MB/s';
+  if (bytesPerSec >= 1024) return (bytesPerSec / 1024).toFixed(0) + ' KB/s';
+  return bytesPerSec.toFixed(0) + ' B/s';
+}
+// v3.2.34: 电池/温度/存储的颜色分级
+function lvlColor(v, yellowAt, redAt) {
+  return v > redAt ? '#f87171' : v > yellowAt ? '#facc15' : '#4ade80';
+}
+
+// v3.2.34: 相同 timestamp 跳过重复分析 (页面切回前台时常遇到一串重复数据)
+// v3.2.71: 温度阈值统一表 — analyze() 与 diagnoseLocal() 共用, 原先两处各写一套
+// 分区阈值: 充电芯片常年比 CPU 热 (快充 50-60°C 是常态), 皮肤温度 >45°C 手感发烫
+const TEMP_RULES = {
+  charger: { mid: 55, high: 65 },
+  skin:    { mid: 40, high: 45 },
+  camera:  { mid: 48, high: 58 },   /* v3.3.4: 摄像头热区, 低于 CPU 但高于皮肤 */
+  chipset: { mid: 50, high: 60 },   /* v3.3.4: 内存/视频解码芯片 */
+  _default:{ mid: 48, high: 55 }
+};
+function _tempRule(zone) {
+  return TEMP_RULES[zone] || TEMP_RULES._default;
+}
+let lastAnalyzedTs = 0;
+function analyze(d) {
+  if (d && d.timestamp && d.timestamp === lastAnalyzedTs) return;
+  lastAnalyzedTs = d.timestamp || 0;
+  const found = [];
+  const pct = (d.mem || {}).percent || 0;
+  if (pct > 85) found.push({severity:'高', title:'内存占用 ' + pct + '%', detail:'接近 OOM 阈值', suggestion:'结束后台应用或重启设备'});
+  else if (pct > 70) found.push({severity:'中', title:'内存占用 ' + pct + '%', detail:'内存压力上升', suggestion:'关注后台进程'});
+  // v3.2.34: 温度告警 (>55°C 高, >45°C 中)
+  // v3.2.28: 排除 batt/battery 类 zone (部分设备实际测充电芯片, 常年 60-95°C 误报)
+  const SOC_ONLY = { cpu: 1, gpu: 1, dsp: 1, modem: 1, skin: 1, charger: 1, wifi: 1, other: 1 };
+  // v3.2.71: 同一传感器 30 秒内只报一次 (原每次轮询都追加, 告警列表几条温度刷屏)
+  // v3.2.71: 节流 key 用 zone label 而非完整 title — title 含温度数值,
+  // 温度一变 (56.0→56.5) 就绕过节流, 传感器刷屏
+  const _now = Date.now();
+  (d.thermal || []).forEach(z => {
+    if (!SOC_ONLY[String(z.label || '')]) return;
+    const t = +(z.temp || 0);
+    const rule = _tempRule(String(z.label || ''));
+    const _zoneKey = 'th:' + String(z.label || 'zone');
+    const title = '温度 ' + z.label + ' ' + t.toFixed(1) + '°C';
+    if (_now - (lastThermalMap[_zoneKey] || 0) < 30000) return;
+    if (t > rule.high) {
+      lastThermalMap[_zoneKey] = _now;
+      found.push({severity:'高', title, detail: z.label === 'charger' ? '充电芯片过热，可能触发充电降频' : '设备过热，可能触发降频保护', suggestion:'暂停高负载应用，检查散热'});
+    } else if (t > rule.mid) {
+      lastThermalMap[_zoneKey] = _now;
+      found.push({severity:'中', title, detail: z.label === 'charger' ? '充电中发热，快充常态' : '机身温度偏高', suggestion:'留意高负载任务'});
+    }
+  });
+  // v3.2.34: 电池告警
+  const b = d.battery || {};
+  if (b.capacity != null && +b.capacity < 20 && b.status !== 'Charging' && b.status !== 'Full') {
+    found.push({severity:'中', title:('电量 ' + b.capacity + '%'), detail:'电量偏低', suggestion:'准备充电'});
+  }
+  // v3.2.28: 电池温度阈值 45→50, >50 中度提醒, >55 高风险
+  if (b.temperature && +b.temperature > 55) {
+    found.push({severity:'高', title:('电池温度 ' + (+b.temperature).toFixed(1) + '°C'), detail:'电池过热，充电可能受限', suggestion:'暂停充电或高负载应用'});
+  } else if (b.temperature && +b.temperature > 50) {
+    found.push({severity:'中', title:('电池温度 ' + (+b.temperature).toFixed(1) + '°C'), detail:'电池温度偏高（快充/高负载常见，>50°C 需留意）', suggestion:'暂停充电或降低负载'});
+  }
+  // v3.2.34: 存储告警
+  const st = (Array.isArray(d.storage) ? d.storage : []).find(x => x.mount === '/data' || x.mount === '/storage/emulated') || (Array.isArray(d.storage) ? d.storage : [])[0];
+  if (st && st.percent != null && +st.percent > 90) {
+    found.push({severity:'高', title:('存储占用 ' + st.percent + '%'), detail:('剩余 ' + (+st.free_gb).toFixed(1) + 'GB'), suggestion:'清理缓存或大文件'});
+  } else if (st && st.percent != null && +st.percent > 75) {
+    found.push({severity:'中', title:('存储占用 ' + st.percent + '%'), detail:('剩余 ' + (+st.free_gb).toFixed(1) + 'GB'), suggestion:'留意存储空间'});
+  }
+  // v3.2.71: 关键词改词边界匹配 — 原子串匹配把 "getLanRtt" 里的 anr 当成 ANR 卡顿
+  // v3.2.71: 同类告警按 tag+类型 Dedup — v3.2.71 日志改 *:E 后同 tag 错误日志变多,
+  // 原实现每条命中都 push, 告警列表被同一类消息重复淹没
+  const _logAlertSeen = {};
+  (d.logcat || []).forEach(line => {
+    const raw = String(line.msg || '');
+    const _low = raw.toLowerCase();
+    // v3.3.2: 噪声日志预过滤 — 同 diagnoseLocal
+    if (_low.indexOf('request body') >= 0 || _low.indexOf('part ') >= 0 ||
+        _low.indexOf('okhttp') >= 0 || _low.indexOf('okio') >= 0) return;
+    if (_low.indexOf('skin') >= 0 && _low.indexOf('温度') >= 0) return;
+    const t = _low.replace(/ /g, '');
+    if (t.includes('outofmemoryerror')) {
+      if (!_logAlertSeen.oom) { _logAlertSeen.oom = 1; found.push({severity:'高', title:'OOM 错误', detail:raw.slice(0,200), suggestion:'释放内存，检查内存泄漏'}); }
+    }
+    // v3.3.2: fatal 词边界 + androidruntime 带异常特征
+    if (/\bfatal\b/i.test(raw) && (/exception/i.test(raw) || /androidruntime/i.test(raw))) {
+      if (!_logAlertSeen.crash) { _logAlertSeen.crash = 1; found.push({severity:'高', title:'应用崩溃', detail:raw.slice(0,200), suggestion:'查看崩溃栈，更新应用'}); }
+    }
+    // v3.2.71: ANR 需词边界 (ANR in / anr: / ANR_),camelCase 函数名里的 anr 不算; 补 "Input dispatching timed out" 特征
+    if (/\banr\b/i.test(raw) || /input\s+dispatching\s+timed\s+out/i.test(raw)) {
+      if (!_logAlertSeen.anr) { _logAlertSeen.anr = 1; found.push({severity:'中', title:'ANR 卡顿', detail:raw.slice(0,200), suggestion:'检查主线程耗时操作'}); }
+    }
+  });
+  (d.processes || []).forEach(p => {
+    if (p.rss_mb > 800) found.push({severity:'中', title:'进程 ' + p.name + ' 占 ' + p.rss_mb + 'MB', detail:'单进程内存过高', suggestion:'评估是否需要该进程'});
+  });
+  const seen = new Set();
+  const now = Date.now();
+  // v3.2.71: 温度告警节流 (key: zone label)
+  // v3.2.71: 节流 key 用"告警类型前缀"而非完整 title — title 含数值 (内存 73%→74%),
+  // 数值微变即绕过节流; 同类型告警 30 秒内只进一条
+  found.forEach(a => {
+    // 提取告警类型前缀: "温度 cpu 56.0°C" → "温度 cpu"; "内存占用 73%" → "内存占用"
+    const _tk = a.title.replace(/\s+[0-9.]+%?°?C?\s*$/, '').trim() || a.title;
+    if (!seen.has(_tk)) {
+      seen.add(_tk);
+      const last = lastAlertMap[_tk] || 0;
+      if (now - last > 30000) { lastAlertMap[_tk] = now; a.time = safeTime(); alerts.push(a); appendAlertHist(a); }
+    }
+  });
+  if (alerts.length > 50) alerts = alerts.slice(-50);
+}
+
+const _r = { dev: '', mt: '', mcls: '', mw: '', mb: '', md: '', ct: '', ccls: '', cw: '', cb: '', err: '',
+  tt: '', tcls: '', tw: '', tb: '', td: '',
+  bt: '', bcls: '', bw: '', bb: '', bd: '',
+  st: '', scls: '', sw: '', sb: '', sd: '',
+  nt: '', ncls: '', nw: '', nb: '', nd: '' };
+function render(d) {
+  // v3.1.9: 渲染时间戳, 数据过期时给提示 (原实现 timestamp 从不显示)
+  const ts = d.timestamp || 0;
+  const lag = ts ? Math.max(0, Math.floor(Date.now() / 1000) - ts) : 0;
+  const lagTxt = (lag > 30) ? '  ⚠️数据延迟' + lag + 's' : '';
+  const _soc = (d.kernel || {}).soc || '';
+  const _gpuClk = (d.gpu || {}).clock_mhz || ((d.kernel || {}).gpu ? String(d.kernel.gpu).split('|')[0] : '');
+  const _gpuTxt = _gpuClk ? ' GPU ' + _gpuClk + 'MHz' : '';
+  const devTxt = (d.device_id || '未连接') + (_soc ? ' · ' + _soc : '') + '  [' + apiMode + ' ' + VER_TAG + ']' + _gpuTxt + lagTxt;
+  if (devTxt !== _r.dev) { _r.dev = devTxt; devEl.textContent = devTxt; }
+  const m = d.mem || {}, c = d.cpu || {};
+  const mp = m.percent, cp = c.percent;
+  const mt = (mp == null ? '--' : mp) + '%';
+  if (mt !== _r.mt) { _r.mt = mt; memEl.textContent = mt; pulse(memEl); setDot(memDot, mp > 85 ? '#f87171' : mp > 70 ? '#facc15' : '#4ade80'); }
+  const mcls = 'value ' + (mp > 85 ? 'red' : mp > 70 ? 'yellow' : 'green');
+  if (mcls !== _r.mcls) { _r.mcls = mcls; memEl.className = mcls; }
+  const mw = (mp || 0) + '%';
+  if (mw !== _r.mw) { _r.mw = mw; memBar.style.width = mw; }
+  const mb = mp > 85 ? '#f87171' : mp > 70 ? '#facc15' : '#4ade80';
+  if (mb !== _r.mb) { _r.mb = mb; memBar.style.background = mb; }
+  const md = (m.used_mb == null ? '--' : m.used_mb) + ' / ' + (m.total_mb == null ? '--' : m.total_mb) + ' MB';
+  if (md !== _r.md) { _r.md = md; memD.textContent = md; }
+  const ct = (cp == null ? '--' : cp) + '%';
+  if (ct !== _r.ct) { _r.ct = ct; cpuEl.textContent = ct; pulse(cpuEl); setDot(cpuDot, cp > 85 ? '#f87171' : cp > 70 ? '#facc15' : '#4ade80'); }
+  const ccls = 'value ' + (cp > 85 ? 'red' : cp > 70 ? 'yellow' : 'green');
+  if (ccls !== _r.ccls) { _r.ccls = ccls; cpuEl.className = ccls; }
+  const cw = (cp || 0) + '%';
+  if (cw !== _r.cw) { _r.cw = cw; cpuBar.style.width = cw; }
+  const cb = cp > 85 ? '#f87171' : cp > 70 ? '#facc15' : '#4ade80';
+  if (cb !== _r.cb) { _r.cb = cb; cpuBar.style.background = cb; }
+    // v3.2.34: 温度 (取最高 zone)
+  const th = (d.thermal || []);
+  let tempMax = 0, tempList = [];
+  // v3.2.28: 温度卡片只统计 SoC 相关类. batt/battery zone 部分设备实际测的是
+  // 充电芯片/PA 温度 (常 60-95°C), 混入会让"CPU 温度"卡片误报过热
+  const SOC_LABELS = { cpu: 1, gpu: 1, dsp: 1, modem: 1, skin: 1, charger: 1, wifi: 1, other: 1, camera: 1, chipset: 1 };
+  (th).forEach(z => {
+    const t = +(z.temp || 0);
+    if (t > 0 && SOC_LABELS[String(z.label || '')]) { if (t > tempMax) tempMax = t; tempList.push(z); }
+  });
+  tempList.sort((a, b) => b.temp - a.temp);
+  const tempTop = tempList.slice(0, 4);
+  // v3.2.28: 正文只留紧凑 "类别 温度", 传感器明细移到 hover 提示, 防止数据多时撑破 UI
+  const tempDetail = tempTop.map(z => String(z.label || 'zone') + ' ' + (+z.temp).toFixed(1) + '°').join(' · ');
+  const tempFull = tempList.map(z => {
+    const lb = String(z.label || 'zone');
+    return lb + ' 最高' + (+z.temp).toFixed(1) + '°' + (z.count > 1 ? ' 最低' + (+z.min).toFixed(0) + '° 共' + z.count + '个' : '');
+  }).join('\n');
+  const tempMore = tempList.length > tempTop.length ? ' +' + (tempList.length - tempTop.length) : '';
+  const tTxt = tempMax > 0 ? tempMax.toFixed(0) + '°C' : '--';
+  if (tTxt !== _r.tt) { _r.tt = tTxt; tempEl.textContent = tTxt; pulse(tempEl); setDot(tempDot, tempMax > 55 ? '#f87171' : tempMax > 45 ? '#facc15' : '#4ade80'); }
+  const tCls = 'value ' + (tempMax > 55 ? 'red' : tempMax > 45 ? 'yellow' : 'green');
+  if (tCls !== _r.tcls) { _r.tcls = tCls; tempEl.className = tCls; }
+  const tw = Math.min(100, tempMax / 80 * 100) + '%';
+  if (tw !== _r.tw) { _r.tw = tw; tempBar.style.width = tw; }
+  const tb = lvlColor(tempMax, 45, 55);
+  if (tb !== _r.tb) { _r.tb = tb; tempBar.style.background = tb; }
+  const tdTxt = tempList.length ? tempDetail + tempMore : '无传感器';
+  if (tdTxt !== _r.td) { _r.td = tdTxt; tempD.textContent = tdTxt; tempD.title = tempList.length ? tempFull : ''; }
+
+  // v3.2.34: 电池
+  const b = d.battery || {};
+  if (b && b.capacity != null) {
+    const cap = +b.capacity;
+    const bTxt = cap + '%';
+    if (bTxt !== _r.bt) { _r.bt = bTxt; battEl.textContent = bTxt; pulse(battEl); setDot(battDot, bTxt === "已充满" ? '#38bdf8' : (100 - cap) > 80 ? '#f87171' : (100 - cap) > 60 ? '#facc15' : '#4ade80'); }
+    const charging = (b.status === 'Charging' || b.status === 'Full');
+    const bCls = 'value ' + (charging ? 'green' : cap < 20 ? 'red' : cap < 40 ? 'yellow' : 'green');
+    if (bCls !== _r.bcls) { _r.bcls = bCls; battEl.className = bCls; }
+    if (b.status === 'Full') battEl.textContent = '已充满';
+    const bw = cap + '%';
+    if (bw !== _r.bw) { _r.bw = bw; battBar.style.width = bw; }
+    const bb = charging ? '#38bdf8' : lvlColor(100 - cap, 60, 80);
+    if (bb !== _r.bb) { _r.bb = bb; battBar.style.background = bb; }
+    const curMA = b.current_ua ? (b.current_ua / 1000).toFixed(0) : null;
+    const volV = b.voltage_uv ? (b.voltage_uv / 1000000).toFixed(2) : null;
+    const bdParts = [esc(b.status || ''), b.health && b.health !== 'Good' ? '健康:' + esc(b.health) : ''];
+    if (curMA) bdParts.push((curMA > 0 ? '+' : '') + curMA + 'mA');
+    if (volV) bdParts.push(volV + 'V');
+    if (b.temperature) bdParts.push(b.temperature.toFixed(1) + '°C');
+    const bdTxt = bdParts.filter(x => x).join(' · ') || '--';
+    if (bdTxt !== _r.bd) { _r.bd = bdTxt; battD.textContent = bdTxt; }
+  }
+
+  // v3.2.34: 存储 (取 /data 或第一个)
+  const stArr = Array.isArray(d.storage) ? d.storage : [];  // v3.2.28: 防御非数组格式
+  const st = stArr.find(x => x.mount === '/data' || x.mount === '/storage/emulated') || stArr[0] || null;
+  if (st && st.total_gb != null) {
+    const sp = +(st.percent || 0);
+    const sTxt = sp + '%';
+    if (sTxt !== _r.st) { _r.st = sTxt; storeEl.textContent = sTxt; pulse(storeEl); setDot(storeDot, sp > 90 ? '#f87171' : sp > 75 ? '#facc15' : '#4ade80'); }
+    const sCls = 'value ' + (sp > 90 ? 'red' : sp > 75 ? 'yellow' : 'green');
+    if (sCls !== _r.scls) { _r.scls = sCls; storeEl.className = sCls; }
+    const sw = sp + '%';
+    if (sw !== _r.sw) { _r.sw = sw; storeBar.style.width = sw; }
+    const sb = lvlColor(sp, 75, 90);
+    if (sb !== _r.sb) { _r.sb = sb; storeBar.style.background = sb; }
+    const sdTxt = (+st.used_gb).toFixed(1) + ' / ' + (+st.total_gb).toFixed(0) + ' GB (剩 ' + (+st.free_gb).toFixed(1) + 'GB)';
+    if (sdTxt !== _r.sd) { _r.sd = sdTxt; storeD.textContent = sdTxt; }
+  }
+
+  // v3.2.98 F1: 耗电来源 - wakelock 持有者 (息屏掉电根因)
+  // v3.2.100: 后端已保证空锁不注入; 前端再过滤纯分隔符, 防 ; 残留导致计数闪烁
+  const wl = d.wakelock || '';
+  const wlParts = String(wl).split('|').map(x => x.replace(/^[;\s]+|[;\s]+$/g, '')).filter(Boolean);
+  const wlCnt = wlParts.length;
+  const wlTxt = wlCnt > 0 ? wlCnt + ' 个锁' : '无锁';
+  if (wlTxt !== _r.wl) { _r.wl = wlTxt; wlEl.textContent = wlTxt; pulse(wlEl); setDot(wlDot, wlCnt > 2 ? '#facc15' : '#4ade80'); }
+  const wlCls = 'value ' + (wlCnt > 2 ? 'yellow' : 'green');
+  if (wlCls !== _r.wlcls) { _r.wlcls = wlCls; wlEl.className = wlCls; }
+  const wlw = Math.min(100, wlCnt * 25) + '%';
+  if (wlw !== _r.wlw) { _r.wlw = wlw; wlBar.style.width = wlw; wlBar.style.background = (wlCnt > 2 ? '#facc15' : '#4ade80'); }
+  const wlDetail = wlParts.slice(0, 2).map(x => x.split(';').filter(Boolean).slice(0, 2).join(' ')).join(' | ') || '息屏空闲';
+  if (wlDetail !== _r.wld) { _r.wld = wlDetail; wlD.textContent = wlDetail; }
+
+  // v3.2.98 F5: 存储空间分析 - 三路 top5 大户
+  const du = d.du || null;
+  if (du) {
+    const srcs = Object.keys(du);
+    const parts = [];
+    srcs.forEach(k => {
+      const entries = du[k] || {};
+      const top3 = Object.entries(entries).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      if (top3.length) parts.push(k + ': ' + top3.map(e => e[0] + ' ' + (e[1] / 1024).toFixed(0) + 'G').join(', '));
+    });
+    const duTxt = parts.join(' | ') || '--';
+    if (duTxt !== _r.du) { _r.du = duTxt; storeD.textContent = storeD.textContent.split(' | ')[0] + ' | ' + duTxt; }
+  }
+
+  // v3.2.34: 网速 (差值计算)
+  const nets = Array.isArray(d.net) ? d.net : [];  // v3.2.28: 防御非数组格式
+  let rxRate = 0, txRate = 0, netParts = [];
+  nets.forEach(n => {
+    const dev = n.dev, rx = +(n.rx_bytes || 0), tx = +(n.tx_bytes || 0);
+    const prev = lastNet[dev];
+    if (prev && d.timestamp && prev.ts && d.timestamp > prev.ts) {
+      const dt = d.timestamp - prev.ts;
+      const r = (rx - prev.rx) / dt, t = (tx - prev.tx) / dt;
+      if (r > rxRate) rxRate = r;
+      if (t > txRate) txRate = t;
+      netParts.push(dev + ' ↓' + fmtRate(r) + ' ↑' + fmtRate(t));
+    }
+    lastNet[dev] = { rx, tx, ts: d.timestamp };
+  });
+  const totalRate = rxRate + txRate;   /* v3.4.6: 仍用于条形/配色, 表示链路总负载 */
+  /* v3.4.6: 主数值改显主导方向 — 上传>下载显示 ↑, 反之 ↓, 避免把 60KB/s 上传看成"在下载" */
+  const leadRate = Math.max(rxRate, txRate);
+  const nTxt = totalRate > 0 ? ((txRate > rxRate ? '↑ ' : '↓ ') + fmtRate(leadRate)) : (nets.length ? '0 B/s' : '--');
+  if (nTxt !== _r.nt) { _r.nt = nTxt; netEl.textContent = nTxt; pulse(netEl); setDot(netDot, totalRate > 2097152 ? '#facc15' : '#4ade80'); }
+  const nCls = 'value ' + (totalRate > 2097152 ? 'yellow' : 'green');
+  if (nCls !== _r.ncls) { _r.ncls = nCls; netEl.className = nCls; }
+  const nw = Math.min(100, totalRate / 4194304 * 100) + '%';
+  if (nw !== _r.nw) { _r.nw = nw; netBar.style.width = nw; }
+  const nb = totalRate > 2097152 ? '#facc15' : '#4ade80';
+  if (nb !== _r.nb) { _r.nb = nb; netBar.style.background = nb; }
+  const ndTxt = netParts.length ? netParts.join(' · ') : (nets.length ? '无流量' : '无网络');
+  if (ndTxt !== _r.nd) { _r.nd = ndTxt; netD.textContent = ndTxt; }
+
+    history.push({mem: mp || 0, cpu: cp || 0, temp: tempMax || 0});
+    if (history.length > 120) history = history.slice(-120);
+    // v3.2.34: 绘图放到 rAF, 与其他 DOM 写入合并到同一帧 (避免布局抖动)
+    if (!chartQueued) { chartQueued = true; requestAnimationFrame(() => { chartQueued = false; drawChart(); }); }
+const procs = d.processes || [];
+    // v3.2.34: pid-only key, rss 微变不触发全量重渲染
+    const pk = procs.length + ':' + procs.map(x => x.pid).join('|');
+    if (pk !== lastProcsKey) {
+      lastProcsKey = pk;
+      procCntEl.textContent = procs.length ? procs.length + ' 个' : '';
+      const pkSeen = new Set(), pkList = [];
+      // v3.2.52: diff 式更新 — 按 pid 复用已有行, 只更新文本与 class, 不再整表 innerHTML 重建。
+      // 任意进程进出时滚动位置天然保留 (DOM 节点被复用), 滚动也不会跳顶。
+      procEl._rowByPid = procEl._rowByPid || {};
+      const _rowByPid = procEl._rowByPid;
+      const _alivePids = {};
+      const _mkRow = function (x) {
+        const row = document.createElement('div');
+        row.className = 'proc';
+        row.dataset.pid = String(x.pid);
+        row.innerHTML =
+          '<span class="p-pid"></span>' +
+          '<span class="p-name"></span>' +
+          '<span class="p-stat"></span>' +
+          '<span class="p-cpu"></span>' +
+          '<span class="p-rss"></span>' +
+          '<input type="checkbox" class="p-wl" title="加入白名单">' +
+          '<button class="btn btn-ghost p-kill">结束</button>';
+        return row;
+      };
+      const _fillRow = function (row, x) {
+        const st = x.stat || 'S';
+        const heavy = x.rss_mb > 400;
+        const pn = String(x.name || '');
+        if (pn.indexOf('.') > 0 && !pkSeen.has(pn)) { pkSeen.add(pn); pkList.push(pn); }
+        row.children[0].textContent = x.pid;
+        const nameEl = row.children[1];
+        nameEl.textContent = x.name;
+        nameEl.className = 'p-name' + (heavy ? ' yellow' : '');
+        const statEl = row.children[2];
+        statEl.textContent = st;
+        statEl.className = 'p-stat stat-' + st;
+        // v3.2.71: CPU% 列 (无数据时显示 --)
+        const cpuEl = row.children[3];
+        const cpuV = x.cpu_pct;
+        if (typeof cpuV === 'number' && isFinite(cpuV)) {
+          cpuEl.textContent = cpuV + '%';
+          cpuEl.className = 'p-cpu' + (cpuV >= 30 ? ' hot' : '');
+        } else {
+          cpuEl.textContent = '--';
+          cpuEl.className = 'p-cpu';
+        }
+        row.children[4].textContent = x.rss_mb + ' MB';
+        const cb = row.children[5];
+        if (cb.dataset.pkg !== pn) { cb.dataset.pkg = pn; }
+        const btn = row.children[6];
+        if (btn.dataset.pid !== String(x.pid)) {
+          btn.dataset.pid = String(x.pid);
+          btn.dataset.name = String(x.name || '');
+        }
+      };
+      if (!procs.length) {
+        procEl.innerHTML = '<div class="empty">无进程</div>';
+        procEl._rowByPid = {};
+      } else {
+        // keep the empty-state out of the way
+        if (procEl.firstChild && procEl.firstChild.className === 'empty') procEl.innerHTML = '';
+        const frag = document.createDocumentFragment();
+        procs.forEach(function (x) {
+          const pidS = String(x.pid);
+          _alivePids[pidS] = 1;
+          let row = _rowByPid[pidS];
+          if (!row) { row = _mkRow(x); _rowByPid[pidS] = row; }
+          _fillRow(row, x);
+          frag.appendChild(row);
+        });
+        // drop rows whose pid vanished
+        Object.keys(_rowByPid).forEach(function (pidS) {
+          if (!_alivePids[pidS]) { delete _rowByPid[pidS]; }
+        });
+        procEl.textContent = '';
+        procEl.appendChild(frag);
+      }
+      // v3.2.34: 更新全局包名清单 (供白名单"添加选中应用"使用)
+      window.__atriaSelPkgs = pkList;
+      // v3.2.34: 委托绑定"结束"按钮
+      // v3.2.29: 事件委托改为容器级一次性绑定 (原每次渲染都 querySelectorAll 遍历 60 个按钮)
+      if (!procEl._killDelegated) {
+        procEl._killDelegated = true;
+        procEl.addEventListener('click', (ev) => {
+          const b = ev.target.closest ? ev.target.closest('.p-kill') : null;
+          if (!b) return;
+          const pid = b.dataset.pid, name = b.dataset.name;
+          if (!confirm('结束进程 ' + name + ' (PID ' + pid + ')?\n受保护进程会自动跳过。')) return;
+          b.disabled = true; b.textContent = '...';
+          execAction('kill ' + pid).then(r => {
+            b.textContent = r.status === 'ok' ? '✅' : (r.status === 'skip' ? '⏭️' : '❌');
+            b.title = r.msg || r.status;
+          }).catch(() => { b.textContent = '❌'; });
+        });
+      }
+    }
+      // v3.2.34: 单次遍历同时生成 key 与 HTML (原实现 slice(0,10) 两次 + map 两次)
+    const top = alerts.slice(0, 10);
+    if (alerts.length && top.length) {
+      let parts = '', key = '';
+      for (let i = 0; i < top.length; i++) {
+        const a = top[i];
+        key += a.title + a.time + '|';
+        parts += '<div class="alert ' + (SEV_CLS[a.severity] || '') + '">' +
+          '<div class="a-top"><span class="a-title ' + (SEV_TXT[a.severity] || '') + '">' + esc(a.title) + '</span>' +
+          '<span class="a-time">' + esc(a.time) + '</span></div>' +
+          '<div class="a-detail">' + esc(a.detail) + '</div>' +
+          '<div class="a-sug">' + '\u5efa\u8bae\uff1a' + esc(a.suggestion) + '</div></div>';
+      }
+      if (key !== lastAlertsKey) { lastAlertsKey = key; altEl.innerHTML = parts; }
+    } else if (lastAlertsKey !== 'empty') {
+      lastAlertsKey = 'empty';
+      altEl.innerHTML = '<div class="empty">\u6682\u65e0\u544a\u8b66</div>';
+    }
+    // v3.2.34: 单次遍历同时生成 key 与 HTML (原 map 两次)
+    const mods = d.modules || [];
+    if (mods.length) {
+      let parts = '', key = '';
+      for (let i = 0; i < mods.length; i++) {
+        const x = mods[i];
+        const mid = esc(x.id || x.name);
+        key += x.name + '|' + mid + (x.enabled ? '1' : '0');
+        parts += '<span class="mod">' + esc(x.name) + ' ' +
+          '<label class="mod-switch"><input type="checkbox" data-mid="' + mid + '"' + (x.enabled ? ' checked' : '') + '><span class="mod-slider"></span></label></span>';
+      }
+      if (key !== lastModsKey) {
+        lastModsKey = key;
+        modEl.innerHTML = parts;
+        // v3.2.43: 改容器级事件委托, key 变化时不再 querySelectorAll 遍历逐个绑定
+        if (!modEl._modDelegated) {
+          modEl._modDelegated = true;
+          modEl.addEventListener('change', (ev) => {
+            const cb = ev.target.closest ? ev.target.closest('input[data-mid]') : null;
+            if (!cb) return;
+            execAndShow('module ' + (cb.checked ? 'enable' : 'disable') + ' ' + cb.dataset.mid);
+          });
+        }
+      }
+    } else if (lastModsKey !== 'empty') {
+      lastModsKey = 'empty';
+      modEl.innerHTML = '<div class="empty">\u65e0</div>';
+    }
+  }
+
+// v3.2.34 恢复: 状态文件与采集命令常量 (此前被误删导致 poll 抛 ReferenceError, 面板空白)
+const STATUS_JSON = 'file:///data/local/tmp/atria_status.json';
+
+// v3.2.43: fetch 超时包装 (AbortController 不可用时回退 Promise 竞速, 兼容旧 WebView)
+function fetchWithTimeout(url, opts, ms) {
+  try {
+    if (typeof AbortController === 'function') {
+      const ac = new AbortController();
+      const tid = setTimeout(() => { try { ac.abort(); } catch (_) {} }, ms);
+      return fetch(url, Object.assign({}, opts, { signal: ac.signal }))
+        .then(r => { clearTimeout(tid); return r; },
+              e => { clearTimeout(tid); throw e; });
+    }
+  } catch (_) {}
+  return Promise.race([
+    fetch(url, opts),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('fetch timeout')), ms))
+  ]);
+}
+// v3.2.43: fetch 加超时保护 — file:// 读取偶发挂起时, 不让整个轮询链卡死、请求堆积
+async function fetchStatus() {
+  const resp = await fetchWithTimeout(STATUS_JSON, { cache: 'no-store' }, 3000);
+  const t = await resp.text();
+  if (!t || !t.trim()) throw new Error('status json empty');
+  return t;
+}
+
+// v3.2.34: 等待 execFn 就绪 (loadApi 是异步的, 启动竞争时 execFn 为 null -> 抛 TypeError 被误报为"采集失败")
+// v3.2.28: 等待循环缩短到 1 秒 (原 4 秒空转占主线程, 页面卡顿明显)
+// v3.2.71: 首屏场景 exec 通道 ~1.1s 才就绪 (loadApi 需先建立 ksu 全局对象),
+// 原 20x50ms=1s 不够, 首屏 fetch 失败时 exec 兜底永远超时。拉到 60x50ms=3s
+// v3.2.74: 带超时的 exec — 通道挂起时不会永久阻塞 UI 交互
+// timeoutMs 默认 15s, 超时拍 reject, 调用方 catch 后提示错误而不是干等
+async function execWithTimeout(cmd, timeoutMs) {
+  const ms = timeoutMs || 15000;
+  return await Promise.race([
+    execFn(cmd),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('执行超时 (' + ms + 'ms)')), ms))
+  ]);
+}
+
+async function awaitExec() {
+  for (let i = 0; i < 60; i++) {
+    if (execFn) return execFn;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  throw new Error('未获得执行通道');
+}
+
+// v3.2.34: 功能执行期间暂停轮询渲染 (exec 与 render 抢主线程是卡顿主因)
+let _fnBusy = false;
+async function poll() {
+  if (_fnBusy) return;
+  try {
+    let out;
+    try { out = await fetchStatus(); }
+    catch (e1) { const exec = await awaitExec(); out = await exec(COLLECT_CMD); }
+    const data = JSON.parse(out);
+    // v3.2.34: timestamp 未变化时跳过 analyze+render (页面切回前台时常遇到一串重复数据)
+    if (latestData && data.timestamp === latestData.timestamp) return;
+    // v3.2.28: 内容指纹去重 — timestamp 变了但数值完全相同 (后台采集频率高于面板) 也跳过, 避免无谓渲染
+    const fp = (data.mem && data.mem.percent) + '|' + (data.cpu && data.cpu.percent) + '|' + (data.thermal || []).map(z => z.temp).join(',') + '|' + (data.battery && data.battery.capacity);
+    if (fp === lastContentFp) { latestData = data; return; }
+    // v3.2.99 F3: 告警历史徽标 (30s 刷一次, 内存命中 15s 内不重复读)
+    if (!alertHistBadge._t || Date.now() - alertHistBadge._t > 30000) {
+      alertHistBadge._t = Date.now();
+      loadAlertHist().then(rows => {
+        if (rows && rows.length) alertHistBadge.textContent = '（历史 ' + rows.length + ' 条）';
+      }).catch(() => {});
+    }
+    lastContentFp = fp;
+    latestData = data;
+    // v3.2.29: analyze+render 合并到 rAF 帧内执行, 避免长任务阻塞主线程 (滚动/动画更流畅)
+    // v3.2.71: analyze 拆出来前置yield — analyze 是纯 CPU (遍历 thermal/logcat/processes + 正则),
+    // 与 render 抢同一帧 16ms 预算; 先让一帧, analyze 跑在空闲期, render 独占下一帧
+    if (_renderRaf) cancelAnimationFrame(_renderRaf);
+    _renderRaf = requestAnimationFrame(() => {
+      _renderRaf = 0;
+      // v3.2.34: analyze 与 render 独立 try, render 异常不能阻止数据更新与下次渲染
+      try { analyze(data); } catch (e) {}
+      // v3.2.71: analyze 后再让一帧, render 的 DOM 写入独占下一帧
+      requestAnimationFrame(() => { try { render(data); } catch (e) {} });
+    });
+  } catch (e) {
+    dlog('poll', '采集失败: ' + String(e.message || e).slice(0, 120));
+    const errTxt = '采集失败 [' + apiMode + ']：' + String(e.message || e).slice(0, 40);
+    if (errTxt !== _r.err) { _r.err = errTxt; devEl.textContent = errTxt; }
+    if (toastFn) { try { toastFn('Atria: 采集失败'); } catch (_) {} }
+  }
+}
+
+async function loadAiConfig() {
+  try {
+    let out = await execFn('cat ' + AI_CONF_PERSIST + ' 2>/dev/null');
+    if (!out || !out.trim()) {
+      out = await execFn('cat ' + AI_CONF + ' 2>/dev/null');
+      if (out && out.trim()) {
+        try {
+          await execFn("echo '" + escSh(out.trim()) + "' > " + AI_CONF_PERSIST + " && chmod 600 " + AI_CONF_PERSIST);
+        } catch (_) {}
+      }
+    }
+    if (out && out.trim()) aiConfig = JSON.parse(out.trim());
+  } catch (e) { aiConfig = null; }
+  aiConfigLoadedAt = Date.now();
+}
+async function saveAiConfig(cfg) {
+  await execFn("echo '" + escSh(JSON.stringify(cfg)) + "' > " + AI_CONF_PERSIST + " && chmod 600 " + AI_CONF_PERSIST);
+  aiConfig = cfg;
+  aiConfigLoadedAt = Date.now();
+}
+async function ensureAiConfig() {
+  if (aiConfig && Date.now() - aiConfigLoadedAt < 30000) return aiConfig;
+  await loadAiConfig();
+  return aiConfig;
+}
+// v3.2.71: 轮断历史 + AI 记忆 — AI 次诊断都是失忆的, 喂上次诊断摘要让它有连续性
+// 存 /data/adb/atria_diag_history.jsonl, 次成功诊断追加一条, 只保留最近 20 条
+const DIAG_HIST_FILE = '/data/adb/atria_diag_history.jsonl';
+let _diagHistCache = null, _diagHistAt = 0;
+async function loadDiagHist() {
+  if (_diagHistCache && Date.now() - _diagHistAt < 30000) return _diagHistCache;
+  try {
+    const exec = execFn || (await awaitExec().catch(() => null));
+    if (!exec) return [];
+    const out = await exec('tail -20 ' + DIAG_HIST_FILE + ' 2>/dev/null');
+    const rows = String(out || '').split('\n').filter(l => l.trim()).map(l => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(x => x && x.summary);
+    _diagHistCache = rows; _diagHistAt = Date.now();
+    return rows;
+  } catch (e) { return []; }
+}
+async function appendDiagHist(res, actionsTaken) {
+  try {
+    const exec = execFn || (await awaitExec().catch(() => null));
+    if (!exec) return;
+    const row = JSON.stringify({ ts: Date.now(), time: new Date().toLocaleTimeString(), risk: res.risk_level || '低', summary: String(res.summary || '').slice(0, 120), actions: (actionsTaken || []).slice(0, 5), mem: latestData && latestData.mem ? latestData.mem.percent : null, temp: latestData && latestData.thermal && latestData.thermal.length ? latestData.thermal[0].temp : null });
+    await exec("printf '%s\\n' '" + row.replace(/'/g, '') + "' >> " + DIAG_HIST_FILE + " 2>/dev/null");
+    _diagHistCache = null;
+  } catch (e) {}
+}
+// v3.2.99 F3: 告警历史 ring buffer - alerts 数组只留当前帧且刷新即丢,
+// 持久化到 /data/adb/atria_alert_history.jsonl (照抄 appendDiagHist 的 jsonl 模式)
+// 只保留最近 40 条, 高级别告警 (severity=高) 触发本地动作链 (F4)
+const ALERT_HIST_FILE = '/data/adb/atria_alert_history.jsonl';
+const ALERT_HIST_MAX = 40;
+let _alertHistCache = null, _alertHistAt = 0;
+async function loadAlertHist() {
+  if (_alertHistCache && Date.now() - _alertHistAt < 15000) return _alertHistCache;
+  try {
+    const exec = execFn || (await awaitExec().catch(() => null));
+    if (!exec) return [];
+    const out = await exec('tail -40 ' + ALERT_HIST_FILE + ' 2>/dev/null');
+    const rows = String(out || '').split('\n').filter(l => l.trim()).map(l => {
+      try { return JSON.parse(l); } catch (e) { return null; }
+    }).filter(x => x && x.title);
+    _alertHistCache = rows; _alertHistAt = Date.now();
+    return rows;
+  } catch (e) { return []; }
+}
+async function appendAlertHist(a) {
+  try {
+    const exec = execFn || (await awaitExec().catch(() => null));
+    if (!exec) return;
+    const row = JSON.stringify({ ts: Date.now(), time: a.time || new Date().toLocaleTimeString(), severity: a.severity || '中', title: String(a.title || '').slice(0, 80), detail: String(a.detail || '').slice(0, 160) });
+    await exec("printf '%s\\n' '" + row.replace(/'/g, '') + "' >> " + ALERT_HIST_FILE + " 2>/dev/null");
+    _alertHistCache = null;
+    // v3.2.99 F4: 高级别告警触发本地条件动作链 (零 API 延迟)
+    if (a.severity === '高') localTrigger(a);
+  } catch (e) {}
+}
+
+// v3.2.99 F4: 本地条件触发器 - 不等 AI, 本地规则直接执行预设动作
+// 触发条件: severity=高 的告警 (内存>90%, 温度>60, OOM/崩溃) 且距上次触发 >120s
+// 动作: 缓存清理 (drop_caches) + 告警历史记录; 强杀进程仍交给 AI (保护名单在 optimize.sh)
+const _localTrigMap = {};
+async function localTrigger(a) {
+  const key = String(a.title || '').replace(/\s+[0-9.]+%?°?C?\s*$/, '').trim() || a.title;
+  const now = Date.now();
+  if (_localTrigMap[key] && now - _localTrigMap[key] < 120000) return;  // 120s 内同类型只触发一次
+  _localTrigMap[key] = now;
+  try {
+    const exec = execFn || (await awaitExec().catch(() => null));
+    if (!exec) return;
+    const actions = [];
+    // 温度型告警: 降亮度太激进不做; 只记录, 让 AI/用户决定
+    if (/温度|temp/i.test(key)) actions.push('record_only');
+    // 内存型告警: drop_caches 是即时有效且无副作用的缓解
+    if (/内存|memory|oom/i.test(key)) actions.push('drop_caches');
+    for (const act of actions) {
+      if (act === 'drop_caches') {
+        await exec('sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null');
+      }
+    }
+  } catch (e) {}
+}
+
+// v3.2.71: 场景化诊断模板 - 针对不同场景给 AI 不同的聚焦指令
+const AI_TEMPLATES = [
+  { id:'auto', label:'通用', hint:'全面诊断', focus:'' },
+  { id:'game', label:'游戏卡顿', hint:'CPU/温度/后台进程', focus:'当前场景：游戏卡顿。请重点排查 CPU 占用高的后台进程、温度过高触发温控、以及可清理的后台应用。' },
+  { id:'battery', label:'耗电快', hint:'后台网络/唤醒锁/定位', focus:'当前场景：耗电快。请重点排查后台网络活动、唤醒锁、高耗电应用、以及定位服务。' },
+  { id:'mem', label:'内存不足', hint:'内存占用/缓存/可杀进程', focus:'当前场景：内存不足。请重点排查内存占用大户、缓存堆积、可安全清理或冻结的进程。' },
+  { id:'heat', label:'发热严重', hint:'温度传感器/充电状态/高负载', focus:'当前场景：发热严重。请重点排查温度最高的传感器区域、充电状态、持续高 CPU 的进程。' },
+  { id:'boot', label:'开机慢', hint:'开机自启/残留进程', focus:'当前场景：开机慢。请重点排查开机自启应用、启动后残留的高占用进程。' }
+];
+let _aiTpl = 'auto';
+function getTplFocus(){ const t = AI_TEMPLATES.find(x => x.id === _aiTpl); return t ? t.focus : ''; }
+
+let _diagExtra = null;
+async function refreshDiagExtra() { _diagExtra = await loadDiagHist(); }
+function buildAiPayload(d) {
+  const logcat = (d.logcat || []).slice(0, 20).map(l => (l.tag || '') + ': ' + (l.msg || '')).join('\n').slice(0, 3000);
+  // v3.2.71: top_processes 带上 pid — 动作白名单是 kill <pid>, 不给 pid 模型只能编造或放弃
+  // v3.2.71: 带上 cpu_pct — CPU 型卡顿进程进得了 AI 视野
+  const procs = (d.processes || []).slice(0, 15).map(p =>
+    p.name + '(' + p.pid + ')=' + p.rss_mb + 'MB' + (typeof p.cpu_pct === 'number' ? ' cpu' + p.cpu_pct + '%' : '')
+  ).join(', ').slice(0, 1200);
+  const alertTxt = alerts.slice(0, 10).map(a => '[' + a.severity + '] ' + a.title + ': ' + a.detail).join('\n').slice(0, 1500);
+  // v3.2.71: 补全温度/电池/存储/网络 — 原实现只喂 mem/cpu, 模型对温度电量等全靠猜
+  const th = (d.thermal || []).map(z => z.label + ':' + (+(z.temp || 0)).toFixed(1) + '°C').join(', ').slice(0, 500);
+  const b = d.battery || {};
+  const stArr = Array.isArray(d.storage) ? d.storage : [];
+  const st = stArr.find(x => x.mount === '/data' || x.mount === '/storage/emulated') || stArr[0] || null;
+  const netOn = (d.net || []).filter(n => (+n.rx_bytes + +n.tx_bytes) > 0).map(n => n.dev).join(', ');
+  // v3.2.71: 趋势数据 — 优先用 history (内存中每次轮询实时累积), 其次 histData (jsonl 尾部)
+  // 让 AI 分清"持续高位"与"刚飙升"——单快箱永远做不到
+  const _histSrc = (Array.isArray(history) && history.length >= 2) ? history
+    : (typeof histData !== 'undefined' && Array.isArray(histData) ? histData : []);
+  // v3.2.97: 均匀采样 — 同样 6 个点, 但从 history 最近 120 点里等距抽取, 覆盖 ~2.5 分钟
+  // 让 AI 看到"最近几分钟"的走势, payload 大小不变
+  const _hN = _histSrc.length;
+  const _hTake = _hN <= 6 ? _histSrc.slice() : Array.from({ length: 6 }, (_, i) => _histSrc[Math.min(_hN - 1, Math.floor(i * (_hN - 1) / 5))]);
+  const hist = _hTake.map(h =>
+    (h.mem != null ? 'mem' + h.mem + '%' : '') + (h.cpu != null ? ' cpu' + h.cpu + '%' : '') + (h.temp != null ? ' temp' + h.temp + '°C' : '')
+  ).filter(x => x).join(' -> ');
+  return { device: d.device_id, os: 'Android', mem: d.mem, cpu: d.cpu, thermal: th,
+    battery: { capacity: b.capacity, status: b.status, temperature: b.temperature },
+    storage: st ? { percent: st.percent, total_gb: st.total_gb, free_gb: st.free_gb } : null,
+    network_active: netOn || 'none',
+    trend: hist || 'unavailable',
+    last_diag: _diagExtra || null,
+    top_processes: procs, recent_logs: logcat, current_alerts: alertTxt,
+    // v3.2.97: 内核压力数据 - PSI 阻塞率/swap/zram/调度器/内核OOM - 判断"该不该清内存"的关键
+    kernel: d.kernel || null,
+    // v3.2.98: 耗电来源 - 息屏掉电根因是 wakelock 持有者, 空字符串=无锁(健康)
+    wakelock: d.wakelock || '',
+    // v3.2.98: CPU Top - processes 按内存排序, 高CPU低内存的卡顿元凶在列表外
+    cpu_top: (d.cpu_procs || []).map(p => p.name + '(' + p.pid + ')=' + p.cpu + '%').join(', ').slice(0, 400) || '',
+    // v3.2.98: 存储大户 - 三路 top5, 回答"存储怎么满了"需要知道是谁占了
+    storage_hogs: d.du ? Object.keys(d.du).map(k =>
+      k + ': ' + Object.entries(d.du[k]).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(e => e[0] + '(' + (e[1] / 1048576).toFixed(1) + 'GB)').join(', ')
+    ).join(' | ') : '',
+    // v3.2.99 F3: 近 10 条告警历史 - 让 AI 看到告警频率/模式, 不只当前帧
+    alert_history: (_alertHistCache || []).slice(-10).map(a => '[' + a.severity + ']' + a.title).join(' | ') };
+}
+async function callAiRaw(msgs, maxTok) {
+  if (!aiConfig || !aiConfig.api_key) throw new Error('未配置 API key');
+  // v3.2.84: 恢复 max_tokens=2000 — v3.2.84 砍到 500 是帮倒忙:
+  // Atria-Dawn-Preview 是推理模型, 先写约 1000 token 思考链再输出回答,
+  // 500 预算被思考链花光 => finish_reason=length, content 为空, 诊断卡死无结果
+  // 真正的慢在思考链(约 11s), 与输出长度无关
+  const body = JSON.stringify({
+    model: aiConfig.model || 'deepseek-chat',
+    messages: msgs,
+    temperature: 0.3,
+    max_tokens: maxTok || 2000
+  });
+  const url = String(aiConfig.base_url || 'https://api.deepseek.com/v1').replace(/\/+$/, '') + '/chat/completions';
+  if (!URL_OK.test(url)) throw new Error('接口地址不合法');
+  if (aiConfig.api_key && !KEY_OK.test(aiConfig.api_key)) throw new Error('API Key 不合法');
+  // v3.2.79: AI 请求改走 WebView 原生 fetch — 彻底绕开 ksu.exec 的同步阻塞
+  // 探针铁证: ksu.exec 跑 curl 时 JS 线程被冻 10-35s (定时器不触发),
+  // 而原生 fetch 同一接口仅 929ms 且网络期间 JS 线程完全自由
+  const _t0 = Date.now();
+  let out;
+  try {
+    const resp = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + aiConfig.api_key,
+        'Content-Type': 'application/json'
+      },
+      body: body
+    }, 45000);
+    out = await resp.text();
+  } catch (e) {
+    const msg = String(e.message || e);
+    // v3.2.79: fetch 失败时回退 curl (WebView 不允许外网 fetch 的设备上保持可用)
+    try { dlog('ai_timing', 'fetch 失败回退 curl: ' + msg.slice(0, 60)); } catch (_) {}
+    // v3.4.0: url 与 api_key 都经 escSh — 历史遗留注入点 (同 fetchModelList 根因)
+    // v3.4.1: url 从裸拼改为单引号包裹 — 模拟手改配置绕过 URL_OK 后, ;/$()/` 仍会注入 (escSh 只转义单引号)
+    const cmd = "curl -s -m 25 -X POST '" + escSh(url) + "'" +
+      " -H 'Authorization: Bearer " + escSh(aiConfig.api_key) + "'" +
+      " -H 'Content-Type: application/json'" +
+      " -d '" + escSh(body) + "'";
+    out = await execWithTimeout(cmd, 30000);
+  }
+  const _t1 = Date.now();
+  try { dlog('ai_timing', 'fetch 往返=' + (_t1 - _t0) + 'ms 输出' + (out ? out.length : 0) + 'B'); } catch (_) {}
+  let data;
+  try { data = JSON.parse(out); }
+  catch (e) {
+    const s2 = out.indexOf('{'), e2 = out.lastIndexOf('}');
+    if (s2 < 0 || e2 <= s2) throw new Error('AI 返回非 JSON');
+    data = JSON.parse(out.slice(s2, e2 + 1));
+  }
+  if (data.error) throw new Error(data.error.message || 'API 错误');
+  const choice = data.choices && data.choices[0];
+  const message = choice && choice.message;
+  const _finish = choice && choice.finish_reason;
+  let content = message && message.content;
+  if (typeof content === 'object' && content !== null) {
+    try { content = JSON.stringify(content); } catch (_) { content = ''; }
+    if (content === '{}' || content === '[]') content = '';
+  }
+  if (typeof content !== 'string' || !content.trim()) {
+    const rc = message && message.reasoning_content;
+    if (typeof rc === 'string' && rc.trim()) content = rc;
+  }
+  if (typeof content !== 'string') throw new Error('AI 返回结构异常');
+  const s = content.indexOf('{'), e = content.lastIndexOf('}');
+  if (s < 0 || e <= s) {
+    if (_finish === 'length') throw new Error('AI 思考超时未给出结论, 请重试');
+    throw new Error('AI 返回非 JSON');
+  }
+  return JSON.parse(content.slice(s, e + 1));
+}
+const AI_PROMPT = '你是安卓系统优化专家。分析设备状态、温度传感器、进程占用与日志，输出严格JSON：{"summary":"一句话总结","risk_level":"低/中/高","suggestions":["建议1","建议2"],"actions":["kill 1234","am force-stop com.xxx.app","drop_caches"]}。' +
+    '【重要】不要输出任何思考过程、分析推导或解释性文字，直接输出上述JSON对象本身，第一个字符必须是 { 最后一个字符必须是 }。' +
+    // v3.2.82: 回答要简短 — summary 上限 80 字, suggestions 每条上限 30 字, 最多 3 条
+    '【字数限制】summary 必须 ≤80 字, 只说结论与最关键的一句话依据; suggestions 每条 ≤30 字、最多 3 条, 只写动作不说原因; 宁可少说不要多说。' +
+    '数据说明：top_processes 格式为 "进程名(pid)=占用MB cpu%"，kill 动作只能引用其中出现的真实 pid，禁止编造。' +
+    'thermal 为各传感器读数（label:温度°C）；判读参考：CPU/GPU 55°C 以下正常，充电芯片 charger 60°C 以下正常，skin 皮肤温度 >45°C 手感发烫；batt 为封装温度常虚假偏高，other 为主板综合温度，二者不要计作过热证据。' +
+    'battery.capacity 为电量百分比，storage.free_gb 为剩余可用空间。' +
+    // v3.2.97: kernel 字段说明
+    'kernel 为内核压力数据（部分设备可能缺失）：psi.s10/s300 为内存阻塞率百分比（10秒/300秒均值），' +
+    's10 > 30 表示存在真实内存停滞（该清内存了），< 5 则内存充足、不需要 drop_caches；' +
+    'kernel.swap.pct 为 zram/swap 使用率，> 70 表示物理内存确实紧张；' +
+    'kernel.gov 为当前 CPU 调度器|当前频率|最大频率（频率单位 kHz），切换调度器前请说明当前值；' +
+    'kernel.oom 为内核 OOM killer 记录（出现说明发生过内存耗尽）；kernel.anr_age_s 为最近一次 ANR 距今秒数。' + + 'v3.2.98 新增字段: wakelock 为息屏掉电根因(空=健康, com.xxx 持锁=后台耗电元凶可强停); cpu_top 为 CPU Top 进程(processes 按内存排序, 高CPU低内存元凶如 surfaceflinger 只在 cpu_top 里); storage_hogs 为存储占用大户(GB), 清理建议必须引用具体应用名。'
+    'trend 为最近若干次采样的趋势序列（mem% cpu% temp°C，箭头分隔，时间从左到右），用于区分"持续高位"与"刚飙升"，提及趋势变化时请引用具体数值。' +
+    'recent_logs 为错误级别日志（优先采集 *:E），出现 OOM/ANR/FATAL 时请引用具体 tag 与次数。' +
+    'actions 为可执行优化动作白名单，仅允许以下 12 类（不符合格式的动作会被前端拒绝）:' +
+    '1. kill <pid> — 结束指定进程（pid 必须来自 top_processes，禁止编造；系统关键进程会被保护名单拦截）;' +    '2. am force-stop <包名> — 强制停止应用（比 kill 彻底，进程会被完整停止）;' +
+    '3. drop_caches — 释放内核页缓存（内存紧张时用，立即生效）;' +
+    '4. vm compact — 整理内存碎片（与 drop_caches 互补：drop 释放缓存，compact 整理碎片；内存占用高但 drop_caches 收益不明显时用这个）;' +
+    '5. vm swappiness <0-200> — 调整交换倾向（值越低越倾向用物理内存，游戏时建议 20-60，省内存建议 100-160，默认 60）;' +
+    '6. clean_cache <包名> — 清理单个应用缓存（不碰用户数据，安全的清理方式）;' +
+    '7. autostart block <包名> — 限制应用后台自启（造成耗电的常驻应用用这个，比 kill 治本）; autostart unblock <包名> — 解除限制;' +
+    '8. powersave on — 开省电模式（关动画+限制后台数据）; powersave off — 关闭;' +
+    '9. perf performance|powersave|schedutil|interactive — 切换 CPU 调度器（performance 满血费电 / schedutil 均衡 / powersave 省电）;' +
+    '10. gpu cap <0-9> — 锁定 GPU 频率上限（Adreno 设备，0=最高档903MHz 解除限频，1-9 逐档降低，游戏发热时锁 5-7 档可压制热源）; gpu restore — 解除 GPU 限频;' +
+    '11. freeze <包名> — 冻结应用（彻底不运行不自启，适合长期占资源的少用应用）; unfreeze <包名> — 解除冻结;' +
+    '12. module enable|disable <模块id> — 启用或禁用内核模块（谨慎使用，仅当某模块确实造成问题时）.' +
+    '动作选择原则：优先治本（freeze / autostart block / clean_cache）而非治标（kill）；内存问题先 drop_caches 或 vm compact；发热问题首推 gpu cap 锁中低档或 perf schedutil；不确定时 actions 返回空数组只给建议。' +
+    '如不需执行任何动作，actions 返回空数组 []；suggestions 最多 5 条。' +
+    'last_diag 为上次诊断的摘要记录。如果存在，请对比当前状态与上次诊断结果指出变化，例如上次建议冻结 X 后内存已从 78% 降到 72%；如无变化不要重复给出相同建议。' +
+    '绝对不要结束承载本面板的 WebUI 宿主应用 io.github.a13e300.ksuwebui（KsuWebUI 管理器进程），即使其内存占用偏高——杀掉它会导致面板立即闪退。';
+
+// v3.2.80: 追问模式补充指令 — 修复"追问没用"的两个根因:
+// 1) 用户的问题原来被设备数据 JSON 覆盖, AI 收不到自然语言问题
+// 2) 主 prompt 禁止解释性文字, 追问"为什么"必然答非所问
+const FOLLOWUP_EXTRA =
+  '【当前为追问模式】用户正在就上一轮诊断结果或当前设备状态提问。' +
+  '请遵守以下规则:' +
+  // v3.2.82: 追问回答也要简短 — 两三句以内, 每条建议 ≤30 字
+  '1. summary 字段承载对用户问题的回答, 允许解释原因或对比数据, 但必须简短: 两三句以内、总共 ≤120 字, 抓重点说;' +
+  '2. risk_level 填写当前评估的风险等级(低/中/高), 不确定时沿用上一轮;' +
+  '3. 如果追问产生了新的可执行动作, 放进 actions 数组(格式同白名单); 没有新动作则返回空数组 [];' +
+  '4. suggestions 给出与问题相关的后续建议, 没有则返回空数组;' +
+  '5. 用户问题在消息中以【追问】开头, 请围绕它回答, 不要只重复上一轮结论;' +
+  '6. 如用户问"上次的建议有效吗", 请对比消息中的【当前设备实时数据】与上一轮数据再回答;' +
+  '7. 输出仍是严格 JSON: {"summary":"","risk_level":"","suggestions":[],"actions":[]}。';
+async function callAi(d) {
+  const _ct0 = Date.now();   // v3.2.92: 端到端计时
+  // v3.2.71: 保留对话历史, 支持多轮追问
+  await refreshDiagExtra();
+  // v3.2.71: 场景化诊断模板 - 把模板聚焦指令拼进 system prompt
+  const _tplFocus = getTplFocus();
+  const _sysPrompt = _tplFocus ? (AI_PROMPT + '\n\n' + _tplFocus) : AI_PROMPT;
+  const msgs = [
+    { role: 'system', content: _sysPrompt },
+    { role: 'user', content: JSON.stringify(buildAiPayload(d)) }
+  ];
+  _aiMessages = msgs.slice();   // 保存上下文供追问
+  const out = await callAiRaw(msgs);
+  try { _aiMessages.push({ role: 'assistant', content: JSON.stringify(out) }); } catch (e) {}
+  try { dlog('ai_timing', 'callAi端到端=' + (Date.now() - _ct0) + 'ms'); } catch (_) {}
+  return out;
+}
+// v3.2.77: 渐进式渲染 — 先出框架，再逐块填充，每块之间让出主线程，不再一次整块塞入
+function renderAi(res, isFallback) {
+  ensureAiContent();
+  const el = document.getElementById('aiContent');
+  const badge = { '高': 'red', '中': 'yellow', '低': 'green' }[res.risk_level] || 'green';
+  // 第 1 帧：先出框架（风险等级 + 占位槽位），摘要与建议稍后填
+  el.innerHTML =
+    (isFallback ? '<div class="empty" style="margin-bottom:8px">⚠️ AI 调用失败，以下为规则引擎结果</div>' : '') +
+    '<div class="a-top"><span class="a-title ' + badge + '">风险等级：' + esc(res.risk_level || '低') + '</span>' +
+    '<span class="a-time">' + safeTime() + '</span></div>' +
+    '<div class="a-detail" style="margin-top:6px" id="aiSumSlot"></div>' +
+    '<div id="aiActions" style="margin-top:8px"></div>' +
+    '<div id="aiSugSlot" style="margin-top:8px"></div>';
+  // 第 2 帧起：摘要逐字增量填充（长文本不一次性布局）
+  const _sumEl = document.getElementById('aiSumSlot');
+  const _sumTxt = String(res.summary || '');
+  const _CHUNK = 24;
+  let _si = 0;
+  const _pumpSum = () => {
+    if (!_sumEl || _si >= _sumTxt.length) { _renderSug(); return; }
+    _sumEl.textContent += _sumTxt.slice(_si, _si + _CHUNK);
+    _si += _CHUNK;
+    if (_si < _sumTxt.length) setTimeout(_pumpSum, 16); else _renderSug();
+  };
+  const _renderSug = () => {
+    // 第 3 帧：建议列表用 DOM 创建，避免整段 HTML 解析
+    const sg = document.getElementById('aiSugSlot');
+    if (sg && (res.suggestions || []).length) {
+      const frag = document.createDocumentFragment();
+      (res.suggestions || []).slice(0, 8).forEach(sm => {
+        const d = document.createElement('div');
+        d.className = 'a-sug';
+        d.textContent = '• ' + sm;
+        frag.appendChild(d);
+      });
+      sg.appendChild(frag);
+    }
+  };
+  setTimeout(_pumpSum, 16);
+}
+function renderActions(el, actions) {
+  el.querySelectorAll('.act-row').forEach(n => n.remove());
+  if (!actions || !actions.length) return;
+  actions.forEach((a, i) => {
+    const act = sanitizeAction(a);
+    const row = document.createElement('div');
+    row.className = 'act-row';
+    const safe = !!act;
+    const btn = document.createElement('button');
+    btn.textContent = safe ? '▶ 执行' : '🚫 拒绝';
+    btn.disabled = !safe;
+    btn.style.cssText = 'background:' + (safe ? '#16a34a' : '#475569') + ';color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:13px;cursor:' + (safe ? 'pointer' : 'not-allowed');
+    const rst = document.createElement('span');
+    rst.style.cssText = 'font-size:12px;color:#94a3b8';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; rst.textContent = ' 执行中...';
+      const _snap2 = snapshotMetrics();
+      const r = await execAction(act);
+      scheduleVerify(_snap2, act);
+      const color = r.status === 'ok' ? '#4ade80' : r.status === 'skip' ? '#facc15' : '#f87171';
+      rst.innerHTML = ' <span style="color:' + color + '">' + (r.status === 'ok' ? '✅' : r.status === 'skip' ? '⏭️' : '❌') + ' ' + esc(r.msg || r.status) + '</span>';
+      btn.textContent = '已执行';
+    });
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap';
+    const lbl = document.createElement('span');
+    lbl.style.cssText = 'font-size:12px;color:#38bdf8;font-family:monospace';
+    lbl.textContent = act || a;
+    row.appendChild(lbl); row.appendChild(btn); row.appendChild(rst);
+    el.appendChild(row);
+  });
+}
+
+function renderOptimizeResult(res) {
+  // v3.2.72: 同样只重写内容区，保留下拉框与追问框
+  ensureAiContent();
+  const el = document.getElementById('aiContent');
+  const cls = res.error ? 'red' : (res.freed_pct > 0 ? 'green' : 'yellow');
+  const badge = res.error ? '优化失败' : '一键优化完成';
+  const detail = res.error ? res.error :
+    '内存 ' + res.before + '% → ' + res.after + '%' + (res.freed_pct > 0 ? '（释放 ' + res.freed_pct + '%）' : '（无明显释放）') +
+    '；结束 ' + (res.killed || 0) + ' 个进程，保护跳过 ' + (res.skipped_protected || 0) + ' 个';
+  el.innerHTML =
+    '<div class="a-top"><span class="a-title ' + cls + '">' + badge + '</span>' +
+    '<span class="a-time">' + safeTime() + '</span></div>' +
+    '<div class="a-detail" style="margin-top:6px">' + esc(detail) + '</div>';
+  if (res.results && res.results.length) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-top:8px';
+    (res.results || []).forEach(r => {
+      const color = r.status === 'ok' ? '#4ade80' : r.status === 'skip' ? '#facc15' : '#f87171';
+      const d = document.createElement('div');
+      d.className = 'a-sug';
+      d.innerHTML = (r.status === 'ok' ? '✅' : r.status === 'skip' ? '⏭️' : '❌') + ' <span style="font-family:monospace">' + esc(r.action) + '</span> ' + esc(r.msg || '');
+      wrap.appendChild(d);
+    });
+    el.appendChild(wrap);
+  }
+}
+
+async function runOptimize() {
+  if (aiBusy || _fnBusy) return;
+  aiBusy = true; _fnBusy = true;
+  // v3.2.34: 执行期间 disable 按钮, 防止重复点击排队
+  const ob = document.getElementById('optBtn');
+  if (ob) { ob.disabled = true; ob.style.opacity = '0.5'; }
+  // v3.2.72: 只重写内容区, 不销毁场景下拉/追问框
+  ensureAiContent();
+  const el = document.getElementById('aiContent');
+  el.innerHTML = '<div class="empty">⏳ 优化执行中（清理大内存进程 + 释放页缓存）...</div>';
+  // v3.2.50: paint loading state first, then yield before the blocking exec
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  try {
+    if (toastFn) { try { toastFn('Atria: 一键优化开始'); } catch (_) {} }
+    const out = await execWithTimeout('sh ' + OPT_PATH, 60000);
+    const res = JSON.parse(out);
+    renderOptimizeResult(res);
+  } catch (e) {
+    renderOptimizeResult({ error: String(e.message || e).slice(0, 80) });
+  } finally {
+    aiBusy = false; _fnBusy = false;
+    if (ob) { ob.disabled = false; ob.style.opacity = ''; }
+  }
+}
+// v3.2.71: 执行后效果验证 — 动作执行后 60 秒对比前后关键指标, 告诉用户这个动作有没有效
+function snapshotMetrics() {
+  const d = latestData;
+  if (!d) return null;
+  return { mem: d.mem ? d.mem.percent : null, temp: (d.thermal || []).map(z => z.temp), swap: d.swap || null, ts: Date.now() };
+}
+function verifyEffect(beforeSnap, label) {
+  try {
+    const a = beforeSnap, b = snapshotMetrics();
+    if (!a || !b || !a.mem || !b.mem) return;
+    const dMem = +(b.mem - a.mem).toFixed(1);
+    const aT = a.temp && a.temp.length ? a.temp.reduce((x, y) => x + y, 0) / a.temp.length : null;
+    const bT = b.temp && b.temp.length ? b.temp.reduce((x, y) => x + y, 0) / b.temp.length : null;
+    const dTemp = (aT != null && bT != null) ? +(bT - aT).toFixed(1) : null;
+    const parts = [];
+    if (dMem !== 0) parts.push('内存 ' + a.mem + '% → ' + b.mem + '%' + (dMem < 0 ? ' (释放 ' + Math.abs(dMem) + '%)' : ' (上升 ' + dMem + '%)'));
+    if (dTemp !== null && Math.abs(dTemp) >= 0.3) parts.push('均值温度 ' + aT.toFixed(1) + '°C → ' + bT.toFixed(1) + '°C');
+    if (!parts.length) { dlog('effect', label + ' 执行后无明显变化'); return; }
+    alerts.unshift({ severity: dMem < 0 || (dTemp !== null && dTemp < 0) ? '中' : '低', title: '动作效果验证', detail: label + ' → ' + parts.join('，'), time: safeTime() });
+  } catch (e) {}
+}
+function scheduleVerify(beforeSnap, label) {
+  setTimeout(() => { try { verifyEffect(beforeSnap, label); } catch (e) {} }, 60000);
+}
+// v3.2.71: 多轮追问 — 保留上下文, 用户可以继续问
+let _aiMessages = null;   // 完整对话历史 (含 system)
+function resetAiChat() { _aiMessages = null; }
+function ensureAiContent() {
+  // v3.2.71: aiResult 内部结构固定为 tplBar + chatBar + content 三层
+  // 诊断/追问/优化结果都只重写 #aiContent，场景切换与追问输入框不再被销毁
+  try {
+    const root = document.getElementById('aiResult');
+    if (!root) return;
+    if (!document.getElementById('aiContent')) {
+      const c = document.createElement('div');
+      c.id = 'aiContent';
+      root.appendChild(c);
+    }
+  } catch (e) {}
+}
+function showChatBar() { try { document.getElementById('aiChatBar').style.display = 'flex'; } catch (e) {} }
+// v3.2.73: 场景下拉填充 — 用 try/catch 兜底, 并在 DOM 就绪后填充 (容错: AI_TEMPLATES 引用失败不能影响其他初始化)
+// v3.2.89: 自定义弹层版 — 填充 label + 点击开/关弹层, 不再用原生 select
+function fillAiTplSel() {
+  try {
+    const sel = document.getElementById('aiTplSel');
+    if (!sel || sel.dataset.filled === '1') return;
+    sel.dataset.filled = '1';
+    // v3.2.88: 点开自定义弹层 (绝对定位, 深色, z-index 200), 不弹系统白卡
+    sel.addEventListener('click', () => {
+      if (document.getElementById('aiTplPop')) { closeAiTplPop(); return; }
+      try {
+        const mask = document.createElement('div');
+        mask.id = 'aiTplMask';
+        mask.addEventListener('click', closeAiTplPop);
+        const pop = document.createElement('div');
+        pop.id = 'aiTplPop';
+        pop.setAttribute('role', 'listbox');
+        pop.innerHTML = AI_TEMPLATES.map(t =>
+          '<div class="tpl-item" role="option" data-id="' + t.id + '" tabindex="0" aria-selected="' + (t.id === _aiTpl) + '">' +
+          '<span class="tpl-name">' + esc(t.label) + '</span>' +
+          (t.hint ? '<span class="tpl-hint">' + esc(t.hint) + '</span>' : '') +
+          '</div>'
+        ).join('');
+        pop.querySelectorAll('.tpl-item').forEach(el => {
+          const pick = () => {
+            _aiTpl = el.dataset.id;
+            const lb = document.getElementById('aiTplSelLabel');
+            if (lb) lb.textContent = el.querySelector('.tpl-name').textContent;
+            closeAiTplPop();
+          };
+          el.addEventListener('click', pick);
+          el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+        });
+        document.body.appendChild(mask);
+        document.body.appendChild(pop);
+        // 定位: 锚到触发条下方, 超出右/底边界则翻转到上方/左对齐
+        const r = sel.getBoundingClientRect();
+        pop.style.left = '0px'; pop.style.top = '0px';
+        const pr = pop.getBoundingClientRect();
+        let L = r.left, T = r.bottom + 6;
+        if (L + pr.width > window.innerWidth - 8) L = Math.max(8, window.innerWidth - pr.width - 8);
+        if (T + pr.height > window.innerHeight - 8) T = Math.max(8, r.top - pr.height - 6);
+        pop.style.left = L + 'px'; pop.style.top = T + 'px';
+        sel.setAttribute('aria-expanded', 'true');
+      } catch (e) { try { closeAiTplPop(); dlog('tpl', 'fillAiTplSel pop err: ' + String(e.message || e).slice(0, 80)); } catch (_) {} }
+    });
+  } catch (e) { try { dlog('tpl', 'fillAiTplSel err: ' + String(e.message || e).slice(0, 80)); } catch (_) {} }
+}
+function closeAiTplPop() {
+  try {
+    const pop = document.getElementById('aiTplPop');
+    if (pop) pop.remove();
+    const mask = document.getElementById('aiTplMask');
+    if (mask) mask.remove();
+    const sel = document.getElementById('aiTplSel');
+    if (sel) sel.setAttribute('aria-expanded', 'false');
+  } catch (e) {}
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAiTplPop(); });
+document.addEventListener('DOMContentLoaded', fillAiTplSel);
+
+async function askFollowup(question) {
+  if (!latestData) { toastFn && toastFn('Atria: 暂无数据'); return; }
+  if (aiBusy || _fnBusy) { toastFn && toastFn('Atria: 正在分析中，请稍候'); return; }
+  if (!_aiMessages) { toastFn && toastFn('Atria: 请先点立即诊断'); return; }
+  // v3.2.81: 空内容防护 (按钮点击路径可能拿到空串)
+  if (!String(question || '').trim()) { toastFn && toastFn('Atria: 追问内容为空'); return; }
+  aiBusy = true; _fnBusy = true;
+  // v3.2.71: 追问内容只追加到内容区, 不重建整个 aiResult (否则下拉框/输入框被销毁)
+  ensureAiContent();
+  const el = document.getElementById('aiContent');
+  const q = document.getElementById('aiChatInput');
+  const qb = document.getElementById('aiChatBtn');
+  if (qb) qb.disabled = true;
+  try {
+    if (q) q.value = '';
+    el.innerHTML += '<div class="a-sug" style="color:#38bdf8">· 追问：' + esc(question) + '</div><div class="empty">AI 思考中...</div>';
+    // v3.2.80: user 消息 = 自然语言问题在前 + 数据快照作附录, 不再让 JSON 覆盖问题
+    const payload = buildAiPayload(latestData);
+    const _tf = getTplFocus(); if (_tf) payload.scene = _tf.slice(0, 100);
+    const _q = String(question).slice(0, 500);
+    const _userContent = '【追问】' + _q + '\n\n【当前设备实时数据】' + JSON.stringify(payload);
+    _aiMessages.push({ role: 'user', content: _userContent });
+    // v3.2.79: 发送时给 system 拼上追问模式指令 (不改 _aiMessages 原始历史)
+    const _sendMsgs = _aiMessages.slice();
+    if (_sendMsgs[0] && _sendMsgs[0].role === 'system') {
+      _sendMsgs[0] = { role: 'system', content: _sendMsgs[0].content + '\n\n' + FOLLOWUP_EXTRA };
+    } else {
+      _sendMsgs.unshift({ role: 'system', content: FOLLOWUP_EXTRA });
+    }
+    // v3.2.84: 追问 max_tokens 恢复 2000 (v3.2.84 的 400 同样被思考链吃光)
+    let _fwDot = 0;
+    const _fwTimer = setInterval(() => {
+      _fwDot++;
+      const _fe = el.querySelector('.empty');
+      if (_fe) _fe.textContent = 'AI 思考中' + '.'.repeat((_fwDot % 4) + 1) + ' （已等 ' + (_fwDot * 2) + 's）';
+    }, 2000);
+    let out;
+    try { out = await callAiRaw(_sendMsgs, 2000); }
+    finally { clearInterval(_fwTimer); }
+    _aiMessages.push({ role: 'assistant', content: JSON.stringify(out) });
+    if (out && out.summary) {
+      el.innerHTML += '<div class="a-sug" style="color:#4ade80">· ' + esc(String(out.summary).slice(0, 150)) + '</div>';
+      if (out.suggestions && out.suggestions.length) el.innerHTML += '<div style="margin-top:6px">' + out.suggestions.map(x2 => '<div class="a-sug">• ' + esc(x2) + '</div>').join('') + '</div>';
+      if (out.actions && out.actions.length) renderActions(document.getElementById('aiActions'), out.actions);
+    }
+    appendDiagHist(out || {}, []);
+  } catch (e) {
+    el.innerHTML += '<div class="a-sug" style="color:#f87171">· 追问失败：' + esc(String(e.message || e).slice(0, 80)) + '</div>';
+  } finally {
+    aiBusy = false; _fnBusy = false;
+    if (qb) qb.disabled = false;
+  }
+}
+async function runAutoOptimize(res) {
+  const acts = (res.actions || []).map(sanitizeAction).filter(x => !!x);
+  if (!acts.length) return;
+  const el = document.getElementById('aiActions');
+  if (el) el.innerHTML = '<div class="empty">⏳ 高风险，自动优化执行中...</div>';
+  const _snap = snapshotMetrics();
+  const outs = [];
+  for (const a of acts) {
+    try { outs.push(await execAction(a)); }
+    catch (e) { outs.push({ action: a, status: 'fail', msg: String(e.message || e).slice(0, 60) }); }
+    scheduleVerify(snapshotMetrics(), a);
+  }
+  const okN = outs.filter(r => r.status === 'ok').length;
+  if (el) {
+    el.innerHTML = outs.map(r => {
+      const color = r.status === 'ok' ? '#4ade80' : r.status === 'skip' ? '#facc15' : '#f87171';
+      return '<div class="a-sug" style="color:' + color + '">' +
+        (r.status === 'ok' ? '✅ 自动执行' : r.status === 'skip' ? '⏭️' : '❌') +
+        ' <span style="font-family:monospace">' + esc(r.action) + '</span> ' + esc(r.msg || '') + '</div>';
+    }).join('');
+  }
+  if (_snap) scheduleVerify(_snap, '自动优化全部动作');
+  alerts.unshift({ severity: '高', title: 'AI 自动优化已执行', detail: outs.map(r => r.action + ': ' + (r.msg || r.status)).join('; ').slice(0, 200),
+                   suggestion: okN + '/' + outs.length + ' 个动作成功', time: safeTime() });
+}
+async function runAi(force) {
+  if (!latestData) return;
+  if (!force && Date.now() - lastAiTime < 60000) return;
+  if (aiBusy || _fnBusy) return;
+  aiBusy = true; _fnBusy = true;
+  // v3.2.59: 成功才更新 lastAiTime — 原实现调用前就标记, 失败后想立刻重试得等满 60s
+  ensureAiContent(); document.getElementById('aiContent').innerHTML = '<div class="empty">AI 分析中...</div>';
+  try {
+    let res = null, lastErr = null;
+    // v3.2.83: 等待期间动态进度提示, 不再干等静态文字
+    const _waitEl = document.getElementById('aiContent');
+    let _waitTick = 0;
+    const _waitTimer = setInterval(() => {
+      if (!_waitEl) return;
+      _waitTick++;
+      const _dots = '.'.repeat((_waitTick % 4) + 1);
+      const _secs = _waitTick * 2;
+      _waitEl.querySelector('.empty') && (_waitEl.querySelector('.empty').textContent =
+        'AI 分析中' + _dots + ' （已等 ' + _secs + 's）');
+    }, 2000);
+    // v3.2.71: 推理模型偶发把 max_tokens 全花在思考链上(content 为空, finish_reason=length),
+    // 重试一次通常就正常 — 原实现直接降级到本地诊断, 用户看到"AI 调用失败"
+    for (let attempt = 0; attempt < 2 && !res; attempt++) {
+      try { res = await callAi(latestData); }
+      catch (e) {
+        lastErr = e;
+        // v3.2.71: 只有"思考超时"这种偶发错误才重试, 配置错误直接降级
+        const msg = String(e.message || '');
+        const retryable = msg.indexOf('思考超时') >= 0 || msg.indexOf('AI 返回结构异常') >= 0;
+        if (!retryable || attempt > 0) break;
+        try { dlog('callAi', '重试: ' + msg.slice(0, 60)); } catch (_) {}
+      }
+    }
+    if (res) {
+      lastAiTime = Date.now();   // v3.2.59: 移到成功后
+      clearInterval(_waitTimer);
+      renderAi(res, false);
+      renderActions(document.getElementById('aiActions'), res.actions || []);
+      appendDiagHist(res, res.actions || []);
+      showChatBar();
+      if (res.risk_level === '高') {
+        if (document.getElementById('aiAuto').checked) runAutoOptimize(res);
+        alerts.unshift({ severity: '高', title: 'AI 高风险', detail: res.summary || '',
+                         suggestion: (res.suggestions || []).join('; '), time: safeTime() });
+      }
+    } else {
+      throw lastErr || new Error('AI 调用失败');
+    }
+  } catch (e) {
+    clearInterval(_waitTimer);
+    // v3.2.34: AI 失败时运行完整本地诊断 (而非只显示错误信息), 并标注降级原因
+    const res = diagnoseLocal(latestData);
+    const reason = String(e.message || e).slice(0, 40);
+    res.summary = '本地诊断（AI 不可用：' + reason + '）：' + res.summary;
+    showChatBar();
+    renderAi(res, true);
+    renderActions(document.getElementById('aiActions'), res.actions || []);
+    if (res.risk_level === '高' && document.getElementById('aiAuto').checked) runAutoOptimize(res);
+  }
+  finally { aiBusy = false; _fnBusy = false; }
+}
+  // v3.2.34: 本地诊断入口 (与 AI 路径分开, 不消耗 API 额度)
+  // v3.2.28: lastLocalTime/localBusy 提升为全局 (按钮 handler 需读取防重复)
+  // v3.2.78: 互斥修复 — 原实现只设 localBusy, 与 runAi/optimize 各管各的锁,
+  // 点"立即诊断"再点"本地诊断"会同时开跑, 两个任务往同一个 aiContent 写结果互相踩,
+  // 渲染队列打架 => 画面卡住。统一用 aiBusy + _fnBusy 全局锁, 且等待期间显示提示
+  async function runLocalDiag(force) {
+    if (!latestData) { toastFn && toastFn('Atria: 暂无数据'); return; }
+    if (!force && Date.now() - lastLocalTime < 20000) return;
+    if (localBusy) return;
+    // v3.2.78: 有其他功能在跑时排队等待, 不与 AI/优化并行抢 aiContent
+    if (aiBusy || _fnBusy) {
+      toastFn && toastFn('Atria: 请先等当前任务结束');
+      return;
+    }
+    localBusy = true; lastLocalTime = Date.now();
+    aiBusy = true; _fnBusy = true;
+    // v3.2.72: 只重写内容区
+    ensureAiContent();
+    const el = document.getElementById('aiContent');
+    el.innerHTML = '<div class="empty">' + '<svg class="ic"><use href="#i-compass"/></svg>' + '本地规则诊断中...</div>';
+    try {
+      const res = diagnoseLocal(latestData);
+      res.summary = (res._local ? '本地诊断：' : '') + res.summary;
+      renderAi(res, false);
+      renderActions(document.getElementById('aiActions'), res.actions || []);
+      if (res.risk_level === '高' && document.getElementById('aiAuto').checked) {
+        runAutoOptimize(res);
+        alerts.unshift({ severity: '高', title: '本地诊断：高风险', detail: res.summary,
+                         suggestion: (res.suggestions || []).join('; '), time: safeTime() });
+      }
+    } catch (e) {
+      renderAi({ summary: '本地诊断异常：' + String(e.message || e).slice(0, 60), risk_level: '低', suggestions: ['请重试'] }, true);
+    }
+    finally { localBusy = false; aiBusy = false; _fnBusy = false; }
+  }
+  // v3.2.34: 通用"执行并展示" (系统优化按钮共用)
+  async function execAndShow(rawAct) {
+    // v3.2.72: 只重写内容区
+    ensureAiContent();
+    const el = document.getElementById('aiContent');
+    const act = sanitizeAction(rawAct);
+    if (!act) { el.innerHTML = '<div class="empty">⚠️ 动作不在白名单内：' + esc(String(rawAct)) + '</div>'; return; }
+    if (_fnBusy) { el.innerHTML = '<div class="empty">⏳ 上一项功能仍在执行，请稍候...</div>'; return; }
+    _fnBusy = true;
+    el.innerHTML = '<div class="empty">⏳ 执行 ' + esc(act) + ' ...</div>';
+    // v3.2.50: let the loading state paint before blocking on exec (double-rAF yield)
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    try {
+    const r = await execAction(act);
+    const color = r.status === 'ok' ? '#4ade80' : r.status === 'skip' ? '#facc15' : '#f87171';
+    el.innerHTML =
+      '<div class="a-top"><span class="a-title" style="color:' + color + '">' +
+        (r.status === 'ok' ? '✅ ' : r.status === 'skip' ? '⏭️ ' : '❌ ') + esc(act) + '</span>' +
+      '<span class="a-time">' + safeTime() + '</span></div>' +
+      '<div class="a-detail" style="margin-top:6px">' + esc(r.msg || r.status) + '</div>';
+    // 大缓存扫描结果按应用分行展示, 每行带"清理"按钮
+    if (act.startsWith('scan_cache') && r.status === 'ok' && r.msg && r.msg.indexOf('MB') >= 0) {
+      const rows = r.msg.trim().split(' ').filter(Boolean);
+      el.innerHTML += '<div style="margin-top:8px">' + rows.map(x => {
+        const i = x.lastIndexOf(':');
+        const pkg = x.slice(0, i), mb = x.slice(i + 1);
+        return '<div class="a-sug" style="display:flex;justify-content:space-between;align-items:center">' +
+          '<span style="font-family:monospace">' + esc(pkg) + '</span>' +
+          '<span>' + mb + '</span>' +
+          '<button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" onclick="cleanCacheApp(\'' + pkg + '\')">清理</button></div>';
+      }).join('') + '</div>';
+    }
+    } finally { _fnBusy = false; }
+  }
+  // v3.2.34: 清理单个应用缓存 (由扫描结果的清理按钮调用)
+  window.cleanCacheApp = (pkg) => execAndShow('clean_cache ' + pkg);
+  // v3.2.34: 系统优化按钮 - 全部经 execAction → optimize.sh 白名单 + 保护名单
+  document.getElementById('scanCacheBtn').addEventListener('click', () => execAndShow('scan_cache top'));
+  document.getElementById('powersaveBtn').addEventListener('click', () => {
+    const btn = document.getElementById('powersaveBtn');
+    const on = btn.dataset.on === '1';
+    execAndShow(on ? 'powersave off' : 'powersave on');
+    btn.dataset.on = on ? '0' : '1';
+    btn.innerHTML = on ? '<svg class="ic"><use href="#i-battery"/></svg>省电模式' : '<svg class="ic"><use href="#i-battery"/></svg>省电中';
+  });
+  document.getElementById('perfBtn').addEventListener('click', () => {
+    const btn = document.getElementById('perfBtn');
+    const next = btn.dataset.gov === 'performance' ? 'schedutil' : 'performance';
+    execAndShow('perf ' + next);
+    btn.dataset.gov = next;
+    btn.innerHTML = next === 'performance' ? '<svg class="ic"><use href="#i-rocket"/></svg>性能模式' : '<svg class="ic"><use href="#i-scale"/></svg>均衡模式';
+  });
+// v3.2.34: 历史范围切换
+// v3.2.93: 修复趋势按钮 data-h → data-hist 属性名不匹配 (原点击器读 dataset.hist 永返 NaN, 四个按钮全部走清空分支, 历史从未加载)
+document.querySelectorAll('#histRange button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#histRange button').forEach(b => b.style.outline = '');
+    btn.style.outline = '2px solid #38bdf8';
+    // v3.2.93: dataset.hist 缺失时按按钮文本回退解析, 永不静默吃点击
+    histHours = +btn.dataset.hist;
+    if (!isFinite(histHours)) { const t = (btn.textContent || "").trim(); histHours = t === "实时" ? 0 : parseInt(t, 10) || 0; }
+    if (histHours > 0) { loadHistory(histHours); } else { histData = null; const hi = document.getElementById('histInfo'); if (hi) hi.textContent = ''; drawChart(); }
+  });
+});
+const aiAutoEl = document.getElementById('aiAuto');
+// v3.2.28: 防重复点击 + 失败不阻塞 (恢复点: callback 风格, 不依赖返回值为 Promise)
+document.getElementById('aiBtn').addEventListener('click', () => {
+  if (aiBusy) { toastFn && toastFn('Atria: 正在分析中'); return; }
+  runAi(true);
+});
+// v3.2.34: 本地诊断 - 无需 AI/网络, 直接跑规则引擎
+document.getElementById('localDiagBtn').addEventListener('click', () => {
+  // v3.2.78: 与"立即诊断"互斥 — AI 在跑时点了直接排队提示, 避免双任务并行写同一容器
+  if (localBusy || aiBusy || _fnBusy) { toastFn && toastFn('Atria: 请先等当前任务结束'); return; }
+  runLocalDiag(true);
+});
+document.getElementById('optBtn').addEventListener('click', () => {
+  if (aiBusy) { toastFn && toastFn('Atria: 正在执行优化'); return; }
+  runOptimize();
+});
+document.getElementById('aiCfgBtn').addEventListener('click', async () => {
+  const urlEl = document.getElementById('cfgUrl');
+  const keyEl = document.getElementById('cfgKey');
+  const modelEl = document.getElementById('cfgModel');
+  const fill = () => {
+    urlEl.value = (aiConfig && aiConfig.base_url) || 'https://api.deepseek.com/v1';
+    keyEl.value = (aiConfig && aiConfig.api_key) || '';
+    modelEl.value = (aiConfig && aiConfig.model) || 'deepseek-chat';
+  };
+  fill();
+  modalOpen = true;
+  document.getElementById('aiModal').style.display = 'flex';
+  if (!aiConfig) { try { await ensureAiConfig(); } catch (e) {} fill(); }
+});
+// v3.3.8: 模型弹层 (模式同 v3.2.89 aiTplPop) — 开
+function openCfgModelPop(ids, curId) {
+  closeCfgModelPop();
+  const mask = document.createElement('div');
+  mask.id = 'aiCfgMask';
+  mask.addEventListener('click', closeCfgModelPop);
+  const pop = document.createElement('div');
+  pop.id = 'aiCfgPop';
+  pop.setAttribute('role', 'listbox');
+  pop.innerHTML = '<div class="ai-pop-hint">共 ' + ids.length + ' 个模型' +
+    (ids.length > 60 ? '，显示前 60 个' : '') + ' · 点击选择</div>' +
+    ids.slice(0, 60).map(function (id) {
+      var bad = !KEY_OK.test(id);
+      return '<div class="tpl-item" role="option" data-id="' + esc(id) + '" tabindex="0" aria-selected="' + (id === curId) + '">' +
+        '<span class="tpl-name">' + esc(id) + (bad ? ' ⚠️' : '') + '</span>' +
+        (bad ? '<span class="tpl-hint">含特殊字符, 选择后请手动检查模型名</span>' : '') +
+        '</div>';
+    }).join('');
+  pop.querySelectorAll('.tpl-item').forEach(function (el) {
+    var pick = function () {
+      var id = el.dataset.id;
+      document.getElementById('cfgModel').value = id;
+      var lb = document.getElementById('cfgModelBtnLabel');
+      if (lb) lb.textContent = id;
+      closeCfgModelPop();
+      var hint = document.getElementById('cfgFetchHint');
+      if (hint) hint.textContent = '已选择 ' + id;
+    };
+    el.addEventListener('click', pick);
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+  });
+  document.body.appendChild(mask);
+  document.body.appendChild(pop);
+  var btn = document.getElementById('cfgModelBtn');
+  // v3.3.9: 按钮未显示时 rect 全 0, 弹层会飞到左上角 — 上层已保证显示再开弹层
+  var r = btn ? btn.getBoundingClientRect() : null;
+  if (!r) { closeCfgModelPop(); return; }
+  pop.style.left = '0px'; pop.style.top = '0px';
+  var pr = pop.getBoundingClientRect();
+  var L = r.left, T = r.bottom + 6;
+  if (L + pr.width > window.innerWidth - 8) L = Math.max(8, window.innerWidth - pr.width - 8);
+  if (T + pr.height > window.innerHeight - 8) T = Math.max(8, r.top - pr.height - 6);
+  pop.style.left = L + 'px'; pop.style.top = T + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+}
+function closeCfgModelPop() {
+  var pop = document.getElementById('aiCfgPop');
+  if (pop) pop.remove();
+  var mask = document.getElementById('aiCfgMask');
+  if (mask) mask.remove();
+  var btn = document.getElementById('cfgModelBtn');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+// v3.3.7: 模型名自动获取 — 从 /models 拉取, 填到弹层, 失败给提示
+var _cfgModelIds = [];   // v3.3.8: 缓存列表, 弹层每次开关都从这里取
+document.getElementById('aiFetchModels').addEventListener('click', async () => {
+  const btn = document.getElementById('aiFetchModels');
+  const pop = document.getElementById('cfgModelBtn');
+  const hint = document.getElementById('cfgFetchHint');
+  if (btn.dataset.busy) return;
+  const baseUrl = document.getElementById('cfgUrl').value.trim();
+  const apiKey = document.getElementById('cfgKey').value.trim();
+  if (!baseUrl) { if (hint) hint.textContent = '⚠️ 请先填写接口地址'; return; }
+  btn.dataset.busy = '1';
+  const oldTxt = btn.textContent;
+  btn.textContent = '获取中...';
+  if (hint) hint.textContent = '';
+  try {
+    const ids = await fetchModelList(baseUrl, apiKey);
+    _cfgModelIds = ids;
+    const cur = document.getElementById('cfgModel').value.trim();
+    const pick = (cur && ids.indexOf(cur) >= 0) ? cur : ids[0];
+    document.getElementById('cfgModel').value = pick;
+    const lb = document.getElementById('cfgModelBtnLabel');
+    if (lb) lb.textContent = pick;
+    const MAX = 60;
+    // v3.3.9: 必须用 'flex' — CSS 里 #cfgModelBtn 是 display:none,
+    // style.display='' 只是清除内联样式, 会回退到 CSS 的 none, 按钮永远不可见
+    // => getBoundingClientRect() 全 0 => 弹层定位到左上角 (0,6)
+    pop.style.display = 'flex';
+    if (cur && ids.indexOf(cur) >= 0) {
+      // v3.3.8: 当前模型在列表中 -> 直接展开弹层, 用户立即看到高亮项
+      openCfgModelPop(ids, cur);
+    }
+    if (hint) hint.textContent = '✓ 获取到 ' + ids.length + ' 个模型' + (ids.length > MAX ? '（仅显示前 ' + MAX + ' 个）' : '') + '，点击下拉框选择';
+  } catch (e) {
+    _cfgModelIds = [];
+    pop.style.display = 'none';
+    if (hint) hint.textContent = '⚠️ 自动获取失败：' + String(e.message || e).slice(0, 80) + '（可手动填写模型名）';
+  } finally {
+    delete btn.dataset.busy;
+    btn.textContent = oldTxt;
+  }
+});
+// v3.3.8: 下拉触发条 — 开/关弹层 (同 fillAiTplSel 模式)
+document.getElementById('cfgModelBtn').addEventListener('click', () => {
+  if (document.getElementById('aiCfgPop')) { closeCfgModelPop(); return; }
+  if (!_cfgModelIds.length) {
+    const hint = document.getElementById('cfgFetchHint');
+    if (hint) hint.textContent = '请先点「自动获取」拉取模型列表';
+    return;
+  }
+  openCfgModelPop(_cfgModelIds, document.getElementById('cfgModel').value.trim());
+});
+// v3.3.7: 平台快捷填充
+document.querySelectorAll('.ai-pl').forEach(b => {
+  b.addEventListener('click', () => {
+    const pre = AI_PLATFORMS[b.dataset.p];
+    if (!pre) return;
+    document.getElementById('cfgUrl').value = pre.url;
+    const kh = document.getElementById('cfgKeyHint');
+    if (kh) { kh.textContent = '（' + (pre.needKey ? '需要 key' : '本地运行无需 key') + '）'; }
+    const ip = document.getElementById('cfgKey');
+    if (!pre.needKey) ip.placeholder = '本地无需填写';
+    else ip.placeholder = pre.hint;
+    document.getElementById('cfgModel').value = pre.model;
+    // 重置上一次的自动获取状态
+    const sel = document.getElementById('cfgModelBtn');
+    if (sel) sel.style.display = 'none';
+    _cfgModelIds = [];
+    const hint = document.getElementById('cfgFetchHint');
+    if (hint) hint.textContent = '已填充 ' + (b.textContent || '') + ' 默认配置，点「自动获取」拉取可用模型';
+  });
+});
+document.getElementById('cfgCancel').addEventListener('click', () => {
+  modalOpen = false;
+  document.getElementById('aiModal').style.display = 'none';
+});
+document.getElementById('cfgSave').addEventListener('click', async () => {
+  const btn = document.getElementById('cfgSave');
+  if (btn.dataset.busy) return;
+  btn.dataset.busy = '1';
+  const cfg = {
+    base_url: document.getElementById('cfgUrl').value.trim(),
+    api_key: document.getElementById('cfgKey').value.trim(),
+    model: document.getElementById('cfgModel').value.trim()
+  };
+  // v3.2.71: 先让 UI 响应这一次点击 (按钮反馈), 再关弹窗
+  btn.textContent = '保存中...';
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  document.getElementById('aiModal').style.display = 'none';
+  modalOpen = false;
+  // v3.2.71: 弹窗关闭动画也需要一帧 — 原实现在 display=none 后立即同步写文件(exec 往返),
+  // 关闭动画还没绘制主线程就被堵住, 用户看到弹窗"卡着关不掉"
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  if (toastFn) { try { toastFn('\u914d\u7f6e\u5df2\u4fdd\u5b58'); } catch (_) {} }
+  try {
+    // v3.1.9: 保存前过白名单, 拒绝非法 url/key 进入配置文件 (S3)
+    const checked = sanitizeAiConfig(cfg);
+    if (!checked || checked.error) throw new Error(checked ? checked.error : '配置不合法');
+    await saveAiConfig(checked);
+    delete btn.dataset.busy;
+    btn.textContent = '保存';
+    // v3.2.71: 诊断延后 — 保存后立即 runAi 会锁住面板 13s (aiBusy),
+    // 延 300ms 让保存动作的 UI 反馈先完成, 且不阻塞用户其他操作
+    setTimeout(() => { try { runAi(true); } catch (e) {} }, 300);
+  } catch (e) {
+    delete btn.dataset.busy;
+    btn.textContent = '保存';
+    alert('\u4fdd\u5b58\u5931\u8d25\uff1a' + (e.message || e));
+  }
+});
+document.getElementById('aiChatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    // v3.2.81: 阻止默认行为, 避免表单提交/换号符插入
+    e.preventDefault();
+    const v = e.target.value.trim();
+    if (v) askFollowup(v);
+  }
+});
+// v3.2.81: 补"追问"按钮的点击事件 — 原实现只绑了输入框回车, 按钮是空操作
+// 用户反馈"问题发不出去、AI 不回答"就是因为点按钮没反应
+document.getElementById('aiChatBtn').addEventListener('click', () => {
+  const inp = document.getElementById('aiChatInput');
+  const v = inp ? inp.value.trim() : '';
+  if (!v) { toastFn && toastFn('Atria: 请输入追问内容'); return; }
+  askFollowup(v);
+});
+aiAutoEl.addEventListener('change', e => {
+    try { localStorage.setItem('atria_ai_auto', e.target.checked ? '1' : '0'); } catch (e2) {}
+  });
+// v3.2.28: localStorage 在 file:// WebView 里可能抛 SecurityError, 安全访问
+  try { aiAutoEl.checked = localStorage.getItem('atria_ai_auto') === '1'; } catch (e) {}
+
+(async () => {
+  bootStep('iife_start');
+  // v3.2.71: loadApi 提前 fire — 原 loadApi 在 fetch 之后调用, 而 fetch 失败回退里的
+  // awaitExec 在等 execFn (由 loadApi 设置), 两者顺序死锁: awaitExec 永远等不到。
+  // 提前后 exec 通道在 fetch 失败回退时已就绪 (loadApi_done 往往在 ~60ms 完成)
+  const _loadApiP = loadApi();
+  const renderFast = (d) => {
+    // v3.2.51: chart 延后 + analyze/render 也让步一帧 — 首屏 60 行 innerHTML 是同步阻塞的,
+    // 不让步的话进入模块头几百毫秒所有点击/触摸都卡在事件队列里
+    const _draw = drawChart;
+    drawChart = () => {};
+    latestData = d;
+    requestAnimationFrame(() => {
+      try { analyze(d); render(d); } finally { drawChart = _draw; }
+      requestAnimationFrame(() => { try { drawChart(); } catch (e) {} });
+    });
+  };
+  // v3.2.28: 首屏若状态文件无有效数据 (collect_loop 未启动), 显示明确提示而非空白
+  // v3.2.71: 首屏 fetch 加超时 — file:// 读取偶发挂起是已知问题 (v3.2.43 注释),
+  // 原实现首屏裸 fetch 无超时, 挂起时永远等不到数据 => 黑屏很久
+  try {
+    bootStep('fetch_start');
+    const resp = await fetchWithTimeout(STATUS_JSON, { cache: 'no-store' }, 3000);
+    bootStep('fetch_done');
+    const txt = await resp.text();
+    const d0 = txt && txt.trim() ? JSON.parse(txt) : null;
+    bootStep('parse_done');
+    if (d0 && d0.mem) {
+      bootStep('render_fast');
+      renderFast(d0);
+    } else {
+      try { dlog('boot', 'status.json 无有效数据, 后台采集未运行'); } catch (e2) {}
+      devEl && (devEl.textContent = '⏳ 后台采集未启动，正在拉起... [v' + VER_TAG + ']');
+      // 拉起后台采集 (不阻塞首屏)
+      try { execFn && execFn('sh ' + (MOD_PATH || MOD_PATHS[0]) + '/scripts/collect_loop.sh > /dev/null 2>&1 &'); } catch (e3) {}
+    }
+  } catch (e) {
+    bootStep('fetch_err:' + String(e.message || e).slice(0, 60));
+    try { dlog('boot', 'status.json 读取失败: ' + String(e.message || e).slice(0, 100)); } catch (e2) {}
+    devEl && (devEl.textContent = '⏳ 正在读取状态... [v' + VER_TAG + ']');
+    // v3.2.71: fetch 失败时 (file:// 偶发被拒) 不再干等 1.2s 后的 poll,
+    // 立即用 exec 通道同步拉一次采集, 拿到数据立即 renderFast — 黑屏时间从 1.2s+ 降到 ~300ms
+    try {
+      const exec = await awaitExec();
+      const out = await exec(COLLECT_CMD);
+      const d0 = out && out.trim() ? JSON.parse(out) : null;
+      bootStep('exec_fallback_ok');
+      if (d0 && d0.mem) renderFast(d0);
+    } catch (e2) {
+      bootStep('exec_fallback_err');
+      devEl && (devEl.textContent = '⚠ 无法读取状态文件 [v' + VER_TAG + ']');
+      // 拉起后台采集
+      try { execFn && execFn('sh ' + (MOD_PATH || MOD_PATHS[0]) + '/scripts/collect_loop.sh > /dev/null 2>&1 &'); } catch (e3) {}
+    }
+  }
+  _loadApiP.then(m => {
+    bootStep('loadApi_done');
+    apiMode = m;
+    // v3.2.51: loadApi 完成时不立即 render (首屏 renderFast 已在处理/已处理), 让主线程先喘口气
+    setTimeout(() => { if (latestData) render(latestData); }, 50);
+    // v3.2.28: 数据还没来 (collect_loop 未启动), 用已就绪的 exec 通道拉起一次采集
+    if (!latestData || !latestData.mem) {
+      try {
+        dlog('boot', '拉起后台采集');
+        execFn('sh ' + (MOD_PATH || MOD_PATHS[0]) + '/scripts/collect_loop.sh > /dev/null 2>&1 &');
+        setTimeout(() => poll(), 1500);
+      } catch (e) { try { dlog('boot', '拉起失败: ' + String(e.message || e).slice(0, 80)); } catch (_) {} }
+    }
+  }).catch(() => {});
+  loadAiConfig().catch(() => {});
+  // v3.2.51: 首屏渲染让出主线程后再开始轮询 (原启动即 poll, 与 renderFast 争抢同一帧)
+  setTimeout(() => poll(), 1200);
+  // v3.2.75: 卡顿探针自动落盘 — 每 15s 把 exec_block 日志追加到 /data/local/tmp/atria_exec_trace
+  setInterval(() => {
+    try {
+      const lines = (window.__atriaLogs || []).filter(l => String(l).indexOf('exec_block') >= 0).slice(-40);
+      if (!lines.length || lines.length === window.__lastEbN) return;
+      window.__lastEbN = lines.length;
+      const b64 = btoa(unescape(encodeURIComponent(lines.join('\n') + '\n')));
+      if (execFn) execFn("echo '" + b64 + "' | base64 -d >> /data/local/tmp/atria_exec_trace 2>/dev/null");
+    } catch (_) {}
+  }, 15000);
+  bootStep('iife_end');
+  // v3.2.29: visibilitychange 主动取消隐藏期间的过期渲染帧
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && _renderRaf) { cancelAnimationFrame(_renderRaf); _renderRaf = 0; }
+  });
+  // v3.2.51: 启动后 8 秒内不跑自动诊断 (首屏渲染 + 图标注入期间主线程最脆)
+  let _bootGap = Date.now() + 8000;
+  setInterval(() => {
+    if (document.hidden) return;
+    if (modalOpen) return;
+    poll();
+    if (aiAutoEl.checked && Date.now() > _bootGap) runAi(false);
+  // v3.2.28: 4s -> 5s 轮询 (减少主线程占用, 配合内容指纹去重数据不会变旧)
+  }, 5000);
+})();
+</script>
+
+<!-- v3.2.28: 日志查看弹窗 -->
+<div id="logModal" class="modal" style="display:none">
+  <div class="modal-card" style="max-width:560px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h2 style="margin:0"><svg class="ic"><use href="#i-log"/></svg>运行日志</h2>
+      <div>
+        <button id="logCopyBtn" class="btn btn-ghost" style="padding:2px 10px;font-size:12px">复制</button>
+        <button id="logExportBtn" class="btn btn-ghost" style="padding:2px 10px;font-size:12px">导出</button>
+        <button id="logCloseBtn" class="btn btn-ghost" style="padding:2px 10px;font-size:12px"><svg class="ic"><use href="#i-x"/></svg></button>
+      </div>
+    </div>
+    <pre id="logContent" style="max-height:60vh;overflow:auto;background:#0b1220;border:1px solid #1e293b;border-radius:8px;padding:10px;font-size:11px;line-height:1.5;color:#94a3b8;white-space:pre-wrap;word-break:break-all;contain:content"></pre>
+  </div>
+</div>
+
+<!-- v3.2.28: 设置弹窗 -->
+<div id="settingsModal" class="modal" style="display:none">
+  <div class="modal-card" style="max-width:480px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2 style="margin:0"><svg class="ic"><use href="#i-settings"/></svg>设置</h2>
+      <button id="settingsCloseBtn" class="btn btn-ghost" style="padding:2px 10px;font-size:12px"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div style="font-size:13px;color:#94a3b8;line-height:2">
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="cfgAiAuto2"> 打开面板时自动 AI 诊断</label>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="cfgVerbose"> 详细日志 (记录每次采集)</label>
+      <div style="margin-top:10px;color:#64748b;font-size:12px">
+        版本: <span id="cfgVer"></span><br>
+        日志文件: /data/local/tmp/atria_panel.log<br>
+        状态文件: /data/local/tmp/atria_status.json<br>
+        历史文件: /data/adb/atria_history.jsonl
+      </div>
+      <!-- v3.2.34: 白名单管理 -->
+      <div style="margin-top:14px;border-top:1px solid #1e293b;padding-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <b style="font-size:13px;display:flex;align-items:center;gap:6px"><svg class="ic"><use href="#i-shield"/></svg>保护白名单</b>
+          <span style="font-size:11px;color:#64748b">每行一个包名, # 为注释</span>
+        </div>
+        <textarea id="wlEditor" rows="5" class="ipt" style="width:100%;font-family:monospace;font-size:12px;resize:vertical" placeholder="com.tencent.mm&#10;com.miui.player"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button id="wlAddBtn" class="btn btn-ghost" style="font-size:12px">＋ 添加当前选中应用</button>
+          <button id="wlSaveBtn" class="btn btn-ai" style="font-size:12px;margin-left:auto">保存白名单</button>
+        </div>
+        <div id="wlMsg" style="font-size:11px;margin-top:4px;min-height:14px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// v3.2.28: 日志/设置弹窗 - ES5 兼容 + 每 handler 独立 try (旧 WebView 解析失败会导致所有按钮失效)
+(function () {
+  function $(id) { try { return document.getElementById(id); } catch (e) { return null; } }
+  function bind(id, fn) {
+    var el = $(id);
+    if (!el) return;
+    try {
+      el.addEventListener('click', function () {
+        try { fn(el); } catch (e) { if (typeof console !== 'undefined' && console.log) console.log('Atria btn err: ' + (e && e.message)); }
+      });
+    } catch (e) {}
+  }
+  function fillLog() {
+    var el = $('logContent');
+    if (!el) return;
+    var buf = [];
+    try {
+      var raw = window.__atriaLogs;
+      if (raw && raw.length) buf = raw.slice(-150);
+    } catch (e) {}
+    try { el.textContent = buf.length ? buf.join('\n') : '暂无日志'; } catch (e) {}
+  }
+  // v3.2.43: 日志弹窗纳入 modalOpen 管理 — 打开期间暂停轮询渲染, 避免弹窗背后的列表刷新抢主线程
+  bind('logBtn', function () {
+    var m = $('logModal');
+    if (!m) return;
+    var open = m.style.display !== 'flex';
+    m.style.display = open ? 'flex' : 'none';
+    modalOpen = open;
+    if (open) fillLog();
+  });
+  bind('logCloseBtn', function () { var m = $('logModal'); if (m) m.style.display = 'none'; modalOpen = false; });
+  bind('logCopyBtn', function (btn) {
+    var el = $('logContent');
+    if (!el) return;
+    var txt = el.textContent || '';
+    if (!txt) return;
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt);
+    } catch (e) {}
+    btn.textContent = '✅';
+    setTimeout(function () { try { btn.textContent = '复制'; } catch (e) {} }, 1200);
+  });
+  bind('logExportBtn', function (btn) {
+    var el = $('logContent');
+    if (!el) return;
+    var txt = el.textContent || '';
+    if (!txt) return;
+    try {
+      var exec = window.__atriaExec;
+      if (!exec) { btn.textContent = '❌ 无通道'; setTimeout(function () { btn.textContent = '导出'; }, 1500); return; }
+      var b64 = '';
+      try { b64 = btoa(unescape(encodeURIComponent(txt))); }
+      catch (e) { btn.textContent = '⚠️ 编码失败'; setTimeout(function () { btn.textContent = '导出'; }, 1500); return; }
+      // v3.2.28: 分块 4KB 逐块 exec (单条命令 >64KB 会被内核截断, 500 条约 250KB)
+      var CHUNK = 4096;
+      var chain = Promise.resolve();
+      var first = true;
+      for (var i = 0; i < b64.length; i += CHUNK) {
+        (function (part, isFirst) {
+          chain = chain.then(function () {
+            var redir = isFirst ? '| base64 -d > /data/local/tmp/atria_panel.log' : ' >> /data/local/tmp/atria_panel.log';
+            return exec("echo '" + part + "' " + redir);
+          });
+        })(b64.slice(i, i + CHUNK), first);
+        first = false;
+      }
+      chain.then(function () {
+        btn.textContent = '✅ 已导出';
+        setTimeout(function () { try { btn.textContent = '导出'; } catch (e) {} }, 1500);
+      }).catch(function () {
+        btn.textContent = '❌ 失败';
+        setTimeout(function () { try { btn.textContent = '导出'; } catch (e) {} }, 1500);
+      });
+    } catch (e) {
+      try { btn.textContent = '❌ 失败'; setTimeout(function () { btn.textContent = '导出'; }, 1500); } catch (e2) {}
+    }
+  });
+// v3.2.36: 白名单应用图标 — v3.2.43 重构: file:// 直载被 WebView 拦截 (v3.2.34 探针实测全 ERR),
+// 改为先由 C 提取器落盘图标, 前端再以 fetch (与 status.json 同通道) / exec base64 兜底读取字节, 内联 data: URI 渲染
+const ICON_DIR = '/data/local/tmp/atria_icons/';
+const ICON_URI = 'file:///data/local/tmp/atria_icons/';
+const ICON_CAND_CONF = '/data/local/tmp/atria_wl_cand.conf';
+const ICON_EXT = ['png', 'webp', 'svg'];
+const PKG_RE_ICON = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,200}$/;
+const _iconCache = {};
+let _iconQueue = [], _iconRunning = 0;
+function _iconMime(e) { return e === 'svg' ? 'image/svg+xml' : 'image/' + e; }
+// v3.2.43: 图标占位 img (data-icon 标记由 hydrateIcons 异步注入 data: URI; 加载前深色底充当占位)
+function iconImgFor(pkg) {
+  return '<img data-icon="' + esc(pkg) + '" alt="" style="width:18px;height:18px;border-radius:4px;vertical-align:-4px;margin-right:6px;object-fit:cover;flex:none;background:#1e293b">';
+}
+// v3.2.43: 由 base64 头部魔数推断 mime (exec 兜底路径单次调用, 不能从扩展名得知格式)
+function _b64Mime(b64) {
+  if (!b64) return 'image/png';
+  if (b64.indexOf('iVBOR') === 0) return 'image/png';
+  if (b64.indexOf('UklGR') === 0) return 'image/webp';
+  if (b64.indexOf('R0lGOD') === 0) return 'image/gif';
+  if (b64.indexOf('/9j/') === 0) return 'image/jpeg';
+  if (b64.indexOf('PHN2Z') === 0 || b64.indexOf('PD94bW') === 0) return 'image/svg+xml';
+  return 'image/png';
+}function _ab2b64(buf) {
+  try {
+    const b = new Uint8Array(buf);
+    let s = '';
+    for (let i = 0; i < b.length; i += 8192) s += String.fromCharCode.apply(null, b.subarray(i, i + 8192));
+    return btoa(s);
+  } catch (e) { return null; }
+}
+// v3.2.43: 图标目录快照 — 一次 ls 拿到已落盘文件名, 避免对不存在的图标逐扩展名发 fetch (可能挂起)
+let _iconDirList = false, _iconDirPromise = null;
+async function _iconDirSet() {
+  if (_iconDirList) return _iconDirList;
+  if (_iconDirPromise) return _iconDirPromise;
+  _iconDirPromise = (async function () {
+    const set = {};
+    try {
+      const exec = await awaitExec();
+      const out = String(await exec('cd ' + ICON_DIR + ' 2>/dev/null && echo *') || '');
+      String(out).split(/\s+/).forEach(function (l) {
+        const t = String(l).trim();
+        const i = t.lastIndexOf('.');
+        // v3.2.43: fix key format — store full filename (pkg.ext), matches lookup set[pkg+'.'+ext] in _loadIconDataURI
+        if (i > 0) set[t] = true;
+      });
+    } catch (e) {}
+    _iconDirList = set;
+    _iconDirPromise = null;
+    return set;
+  })();
+  return _iconDirPromise;
+}
+// v3.2.43: 单包图标加载 — 快照命中才 fetch (与 status.json 同通道), exec base64 兜底
+async function _loadIconDataURI(pkg) {
+  let set = null;
+  try { set = await _iconDirSet(); } catch (e) {}
+  let inSnap = false;
+  for (let j = 0; j < ICON_EXT.length; j++) { if (set && set[pkg + '.' + ICON_EXT[j]]) { inSnap = true; break; } }
+  for (let i = 0; i < ICON_EXT.length; i++) {
+    const ext = ICON_EXT[i];
+    if (set && !set[pkg + '.' + ext]) continue;
+    try {
+      const r = await fetchWithTimeout(ICON_URI + pkg + '.' + ext, { cache: 'no-store' }, 3000);
+      if (r && r.ok) {
+        let b64 = null;
+        if (ext === 'svg') { const t = await r.text(); if (t && t.trim()) b64 = btoa(unescape(encodeURIComponent(t))); }
+        else { const ab = await r.arrayBuffer(); if (ab && ab.byteLength > 0) b64 = _ab2b64(ab); }
+        if (b64 && b64.length % 4 === 0) return 'data:' + _iconMime(ext) + ';base64,' + b64;
+      }
+    } catch (e) {}
+  }
+  // v3.2.43: 快照缺失或命中时才走 exec 兜底 (快照确认不存在则跳过, 省掉无效调用)
+  if (!set || inSnap) {
+    try {
+      const exec = await awaitExec();
+      const p1 = ICON_DIR + pkg + '.png', p2 = ICON_DIR + pkg + '.webp', p3 = ICON_DIR + pkg + '.svg';
+      const sh = 'f="' + p1 + '"; [ -f "$f" ] || f="' + p2 + '"; [ -f "$f" ] || f="' + p3 + '"; [ -f "$f" ] && base64 -w0 "$f" || echo XNONE';
+      const out = String(await exec(sh) || '');
+      const b64 = (out.indexOf('XNONE') === 0) ? '' : out.replace(/\s+/g, '');
+      // v3.2.43: base64 pad-char tolerant check — bridge may append trailing newline / truncated tail
+      const b64n = b64;
+      if (b64n && b64n.length % 4 === 0 && b64n.length > 100) return 'data:' + _b64Mime(b64n) + ';base64,' + b64n;
+    } catch (e) {}
+  }
+  return null;
+}function _iconEnqueue(pkg, img) {
+  if (!PKG_RE_ICON.test(pkg)) return;
+  const c = _iconCache[pkg];
+  if (c !== undefined) { if (c) try { img.src = c; } catch (e) {} return; }
+  _iconQueue.push({ p: pkg, i: img });
+  _iconPump();
+}
+async function _iconPump() {
+  if (_iconRunning >= 5) return;   /* v3.2.52: IO-bound, 5 路 parallel fetch/exec 显著缩短首注入时间 */
+  const it = _iconQueue.shift();
+  if (!it) return;
+  _iconRunning++;
+  try { const u = await _loadIconDataURI(it.p); _iconCache[it.p] = u || false; if (u) try { it.i.src = u; } catch (e) {} }
+  catch (e) { _iconCache[it.p] = false; }
+  _iconRunning--;
+  if (_iconQueue.length) try { _iconPump(); } catch (e) {}
+}
+function hydrateIcons(root) {
+  try {
+    const im = (root || document).querySelectorAll('img[data-icon]');
+    for (let k = 0; k < im.length; k++) _iconEnqueue(im[k].getAttribute('data-icon'), im[k]);
+  } catch (e) {}
+}const ICON_CAND_DONE = '/data/local/tmp/atria_wl_cand.done';
+// v3.2.43: 可执行文本写入 (base64 分块, 与 saveWhitelist 同构)
+async function _writeFileB64(path, txt) {
+  const exec = await awaitExec();
+  const b64 = btoa(unescape(encodeURIComponent(txt + '\n')));
+  const CHUNK = 4096;
+  let first = true;
+  for (let i = 0; i < b64.length; i += CHUNK) {
+    const part = b64.slice(i, i + CHUNK);
+    const redir = first ? '| base64 -d > ' + path : ' >> ' + path;
+    await exec("echo '" + part + "' " + redir);
+    first = false;
+  }
+  await exec('chmod 644 ' + path);
+}
+// v3.2.43: 候选列表预提取 — 临时 conf 批量落盘图标, 完成后清缓存重渲染
+let _candBusy = false;
+async function ensureCandidateIcons(pkgs, box) {
+  if (_candBusy) return;
+  const list = (pkgs || []).filter(function (p) { return PKG_RE_ICON.test(p); }).slice(0, 60);
+  if (!list.length) return;
+  _candBusy = true;
+  try {
+    const exec = await awaitExec();
+    const _mp = (MOD_PATH || MOD_PATHS[0]);
+    await exec('rm -f ' + ICON_CAND_DONE);
+    await _writeFileB64(ICON_CAND_CONF, list.join('\n'));
+    // v3.2.43: 后台批量提取 (与 saveWhitelist 同链路), 完成后落 done 标记并清理临时 conf
+    await exec('(' + _mp + '/native/icon_extract_c_arm64 --whitelist ' + ICON_CAND_CONF + ' ' + ICON_DIR + ' >/dev/null 2>&1 && touch ' + ICON_CAND_DONE + '; rm -f ' + ICON_CAND_CONF + ') >/dev/null 2>&1 &');
+    // v3.2.43: 轮询 done 标记 (750ms 间隔, 上限 90 次); 超时不重渲染, 图标仍在后台落盘, 下次打开即显示
+    let n = 0;
+    const tick = async function () {
+      try {
+        const out = String(await exec('test -f ' + ICON_CAND_DONE + ' && echo Y') || '');
+        if (out.indexOf('Y') >= 0) {
+          list.forEach(function (p) { delete _iconCache[p]; });
+          _iconDirList = false; _iconDirPromise = null;
+          try { hydrateIcons(box); } catch (e) {}
+          _candBusy = false;
+          return;
+        }
+      } catch (e) {}
+      if (++n >= 90) { _candBusy = false; return; }
+      setTimeout(tick, 750);
+    };
+    setTimeout(tick, 750);
+  } catch (e) { _candBusy = false; }
+}
+
+  // v3.2.34: 白名单管理
+  const WL_FILE = '/data/adb/atria_whitelist.conf';
+  async function loadWhitelist() {
+    const el = $('wlEditor'), msg = $('wlMsg');
+    if (!el) return;
+    try {
+      const exec = await awaitExec();
+      // v3.2.45: cat multi-line output truncated by exec bridge (only first line returned).
+      // base64 -w0 emits single-line output which survives the bridge; decode in JS.
+      const b64 = await exec('base64 -w0 ' + WL_FILE + ' 2>/dev/null');
+      let out = '';
+      try { out = decodeURIComponent(escape(atob(String(b64 || '').trim()))); } catch (e) { out = ''; }
+      el.value = (out || '').trim() || '# 每行一个包名, # 为注释\n#com.tencent.mm';
+      if (msg) { msg.textContent = ''; msg.style.color = ''; }
+    } catch (e) {
+      if (msg) { msg.textContent = '加载失败: ' + String(e.message || e).slice(0, 60); msg.style.color = '#f87171'; }
+    }
+  }
+  async function saveWhitelist() {
+    const el = $('wlEditor'), msg = $('wlMsg');
+    if (!el) return;
+    const txt = (el.value || '').trim();
+    // v3.2.43: 空白名单不落盘 (避免写入仅换行符的无效文件, 提取器空转)
+    if (!txt) { if (msg) { msg.textContent = '白名单为空, 未保存 (逐行填写包名后重试)'; msg.style.color = '#facc15'; } return; }
+    try {
+      const exec = await awaitExec();
+      // v3.2.34: base64 分块写入, 避免引号/特殊字符转义问题
+      const b64 = btoa(unescape(encodeURIComponent(txt + '\n')));
+      const CHUNK = 4096;
+      let first = true;
+      for (let i = 0; i < b64.length; i += CHUNK) {
+        const part = b64.slice(i, i + CHUNK);
+        const redir = first ? '| base64 -d > ' + WL_FILE : ' >> ' + WL_FILE;
+        await exec("echo '" + part + "' " + redir);
+        first = false;
+      }
+      await exec('chmod 644 ' + WL_FILE);
+      // v3.2.36: 保存后异步触发白名单应用图标提取 (后台执行, 不阻塞面板;
+      // 后端 collect_loop.sh refresh_icons 也会每约 60s 检测 mtime 变化自动刷新)
+      try {
+        const _mp = (MOD_PATH || MOD_PATHS[0]);
+        await exec(_mp + "/native/icon_extract_c_arm64 --whitelist " + WL_FILE + " /data/local/tmp/atria_icons >/dev/null 2>&1 &");
+      } catch (_) {}
+      if (msg) { msg.textContent = '✅ 已保存 (' + txt.split('\n').filter(l => l && !l.startsWith('#')).length + ' 个包名)'; msg.style.color = '#4ade80'; }
+      try { toastFn && toastFn('Atria: 白名单已保存'); } catch (_) {}
+    } catch (e) {
+      if (msg) { msg.textContent = '保存失败: ' + String(e.message || e).slice(0, 60); msg.style.color = '#f87171'; }
+    }
+  }
+  bind('wlSaveBtn', function () { saveWhitelist(); });
+  // v3.2.34: 添加按钮 -> 弹出进程包名列表自主选择
+  bind('wlAddBtn', function () {
+    const el = $('wlEditor');
+    if (!el) return;
+    // 收集进程列表里勾选的包名
+    const checked = Array.from(document.querySelectorAll('.p-wl:checked'))
+      .map(c => c.dataset.pkg).filter(Boolean);
+    // 备选: 全部检测到的包名 (去重)
+    const all = (window.__atriaSelPkgs || []).slice();
+    const cands = checked.length ? checked : all;
+    if (!cands.length) { const m = $('wlMsg'); if (m) { m.textContent = '暂无可添加的应用包名 (等待进程列表加载)'; m.style.color = '#facc15'; } return; }
+    // 已在白名单里的标记
+    const lines = (el.value || '').split('\n').map(x => x.trim()).filter(x => x && !x.startsWith('#'));
+    const inWL = new Set(lines);
+    const msg = $('wlMsg');
+    if (checked.length) {
+      // 直接添加勾选的
+      let added = 0;
+      cands.forEach(pkg => { if (!inWL.has(pkg)) { lines.push(pkg); added++; } });
+      el.value = lines.join('\n') + '\n';
+      if (msg) { msg.textContent = added ? '已添加 ' + added + ' 个包名, 记得点保存' : '所选包名已在白名单中'; msg.style.color = added ? '#facc15' : '#94a3b8'; }
+      return;
+    }
+    // 未勾选 -> 弹出选择列表
+    if (msg) { msg.textContent = '共 ' + cands.length + ' 个候选包名, 点击要添加的:'; msg.style.color = '#94a3b8'; }
+    const box = document.createElement('div');
+    box.style.cssText = 'max-height:180px;overflow:auto;border:1px solid #1e293b;border-radius:8px;padding:6px;margin-top:6px';
+    cands.forEach(pkg => {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:4px 8px;font-size:12px;font-family:monospace;cursor:pointer;border-radius:4px;display:flex;align-items:center';
+      // v3.2.43: 包名前显示应用图标 (data: URI 内联, hydrateIcons 异步注入; 候选包预提取见 ensureCandidateIcons)
+      row.innerHTML = iconImgFor(pkg) + '<span>' + esc(pkg) + (inWL.has(pkg) ? '  ✓已在白名单' : '') + '</span>';
+      if (inWL.has(pkg)) row.style.color = '#4ade80';
+      row.onmouseenter = () => { if (!inWL.has(pkg)) row.style.background = '#1e293b'; };
+      row.onmouseleave = () => { row.style.background = ''; };
+      row.onclick = () => {
+        if (inWL.has(pkg)) return;
+        lines.push(pkg); inWL.add(pkg);
+        el.value = lines.join('\n') + '\n';
+        row.style.color = '#4ade80';
+        // v3.2.36: 点击后保留图标, 仅更新包名后缀文本
+        const span = row.querySelector('span');
+        if (span) span.textContent = pkg + '  ✓已添加';
+        if (msg) { msg.textContent = '已添加 ' + pkg + ', 继续点选或保存'; msg.style.color = '#facc15'; }
+      };
+      box.appendChild(row);
+    });
+    // 插入到按钮区下方 (替换上次的选择列表)
+    const oldBox = document.getElementById('wlPickBox');
+    if (oldBox) oldBox.remove();
+    box.id = 'wlPickBox';
+    el.parentElement.appendChild(box);
+    // v3.2.43: 注入图标 (缓存命中立即显示); 候选包批量预提取, 落盘后重新注入
+    try { hydrateIcons(box); } catch (e) {}
+    try { ensureCandidateIcons(cands, box); } catch (e) {}
+  });
+  // v3.2.43: 设置弹窗纳入 modalOpen 管理 — 打开期间暂停轮询渲染
+  bind('settingsBtn', function () {
+    var m = $('settingsModal');
+    if (!m) return;
+    var open = m.style.display !== 'flex';
+    m.style.display = open ? 'flex' : 'none';
+    modalOpen = open;
+    var v = $('cfgVer');
+    if (v) { try { v.textContent = window.__atriaVer || ''; } catch (e) {} }
+    // v3.2.34: 打开设置时加载白名单
+    if (open) loadWhitelist();
+  });
+  bind('settingsCloseBtn', function () { var m = $('settingsModal'); if (m) m.style.display = 'none'; modalOpen = false; });
+})();
+</script>
+<script>
+// v3.2.36: 白名单应用图标功能已集成 (iconImgFor + saveWhitelist 触发提取);
+// 原有的 android.resource:// 图标加载测试探针 (v3.2.34, 实测全部 ERR) 已移除。
+</script>
+</body>
+</html>
