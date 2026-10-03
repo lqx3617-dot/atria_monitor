@@ -1,4 +1,4 @@
-/* Atria Monitor v3.2.97 - APK icon extractor (part 1: utils, string pool, AXML, zip)
+/* Atria Monitor v3.4.6 - APK icon extractor (part 1: utils, string pool, AXML, zip)
  * Extracts launcher icons from APK (zip) archives.
  *   PNG/WEBP/JPG entries are copied verbatim; VectorDrawable (with gradient
  *   references) is converted to SVG.

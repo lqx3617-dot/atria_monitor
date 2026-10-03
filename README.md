@@ -203,7 +203,13 @@ AI 会幻觉。`KILL_GUARD`（前端）与 `PKG_PROTECTED`（后端 optimize.sh�
 
 ---
 
-## 七、注意事项
+## 
+## 安装包下载
+点击下载：[**atria_monitor_v3.4.6.zip**](https://github.com/lqx3617-dot/atria_monitor/releases/download/v3.4.6/atria_monitor_v3.4.6.zip)（766 KB，14 文件，SHA256 `741e21a948aeba7eb1aec22ddc8da37e7d62c2716db0cb7aef149d4e5f0be407`）
+
+刷入方法：内核管理器（KernelSU / SukiSU / Magisk / APatch）选「模块」→ 「从存储安装」，选择下载的 zip，安装后重启即可用。面板打开方式：内核管理器里点本模块，或用任何 file:// 可访问的 WebView 打开「面板」。
+
+七、注意事项
 
 - **Root 必需**：模块依赖 KernelSU/SukiSU/Magisk/APatch 的 root 与模块机制
 - **兼容性**：依赖 `/proc/net/dev`、`dumpsys`、`top -n 1 -b`、PSI（内核需开启 CONFIG_PSI，未开启时该项自动缺省）
