@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.6 - 本地优化执行器
+# Atria Monitor v3.4.34 - 本地优化执行器
 # 用法:
 #   optimize.sh              一键优化: 清理大内存非保护进程 + 释放页缓存
 #   optimize.sh exec '动作'  执行单条白名单动作: kill <pid> / am force-stop <包名> / drop_caches
@@ -84,6 +84,58 @@ detect_foreground() {
   printf '%s' "$FOREGROUND_PKG"
 }
 
+# v3.4.22: 媒体播放保护 — 识别正在播放音乐/音频的应用, 一键优化与 AI kill 均跳过
+# 数据源: dumpsys media_session
+#   1) Sessions Stack 块: package=X + state=3 (PlaybackState.STATE_PLAYING) = 正在播放
+#   2) "Audio playback (lastly played comes first)" 段: 最近播放过的应用 (兜底, 播放中必在列表)
+# 返回: 播放中包名列表 (空格分隔), 结果缓存避免逐进程 fork dumpsys
+MEDIA_PLAYING=''
+detect_media_playing() {
+  if [ -n "$MEDIA_PLAYING" ]; then printf '%s' "$MEDIA_PLAYING"; return; fi
+  local MS PKG INPLAY SECTION
+  MS=$(dumpsys media_session 2>/dev/null)
+  if [ -z "$MS" ]; then MEDIA_PLAYING='__none__'; printf '%s' "$MEDIA_PLAYING"; return; fi
+  INPLAY=''
+  # 1) Sessions stack: 同一块内 package=X 且 state=3 (STATE_PLAYING) = 正在播放
+  # 块头: "  <pkg>/<act> (userId=" (两空格缩进); 块内含 package= 与 state=
+  printf '%s\n' "$MS" | awk '
+    /^  [A-Za-z0-9._]+\/[A-Za-z0-9._\/]* ?\(userId=|^  [A-Za-z0-9._]+ \(userId=/ {
+      if (pkg != "" && state == "play") print pkg
+      pkg = ""; state = ""
+    }
+    /package=/ { if (match($0, /package=[A-Za-z0-9._-]+/)) pkg = substr($0, RSTART+8, RLENGTH-8) }
+    /^    state=[0-9]| state=[0-9]/ {
+      if (match($0, /state=[0-9]+/)) { s = substr($0, RSTART+6, RLENGTH-6); if (s == "3") state = "play" }
+    }
+    END { if (pkg != "" && state == "play") print pkg }
+  ' > /tmp/.atria_ms_$$.txt 2>/dev/null
+  while IFS= read -r PKG; do
+    [ -n "$PKG" ] || continue
+    case " $INPLAY " in *" $PKG "*) ;; *) INPLAY="$INPLAY $PKG" ;; esac
+  done < /tmp/.atria_ms_$$.txt 2>/dev/null
+  rm -f /tmp/.atria_ms_$$.txt 2>/dev/null
+  # 2) Audio playback 段兜底 (该段内 packages 视为播放相关, 保守保护)
+  SECTION=$(printf '%s\n' "$MS" | sed -n '/Audio playback/,/^Media session config/p' 2>/dev/null)
+  printf '%s\n' "$SECTION" | grep -oE 'packages=[A-Za-z0-9._-]+' 2>/dev/null | sed 's/packages=//' > /tmp/.atria_mp_$$.txt 2>/dev/null
+  while IFS= read -r PKG; do
+    [ -n "$PKG" ] || continue
+    case " $INPLAY " in *" $PKG "*) ;; *) INPLAY="$INPLAY $PKG" ;; esac
+  done < /tmp/.atria_mp_$$.txt 2>/dev/null
+  rm -f /tmp/.atria_mp_$$.txt 2>/dev/null
+  MEDIA_PLAYING="${INPLAY# }"
+  [ -z "$MEDIA_PLAYING" ] && MEDIA_PLAYING='__none__'
+  printf '%s' "$MEDIA_PLAYING"
+}
+
+# v3.4.22: 判断包名是否正在播放音频 (供 kill_guard / do_optimize 调用)
+is_media_playing() {
+  [ -z "$1" ] && return 1
+  [ -z "$MEDIA_PLAYING" ] && detect_media_playing >/dev/null 2>&1
+  [ "$MEDIA_PLAYING" = "__none__" ] && return 1
+  case " $MEDIA_PLAYING " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
 is_protected() {
   # 1) comm 短名匹配
   case " $PROTECTED " in *" $1 "*) return 0 ;; esac
@@ -151,6 +203,18 @@ kill_guard() {
     add_res "kill $PID" skip "跳过系统/前台应用 ${CMD:-$NAME}"
     return 1
   fi
+  # v3.4.22: 媒体播放保护 — 正在播放音乐/音频的应用不杀 (用户明确要求)
+  CMD=$(pid_cmdline "$PID")
+  case "$CMD" in
+    '') ;;
+    *)
+      CPKG=$(printf '%s' "$CMD" | awk '{print $1}' | sed 's/.*://')
+      if is_media_playing "$CPKG"; then
+        add_res "kill $PID" skip "跳过正在播放音频 ${CPKG:-$NAME}"
+        return 1
+      fi
+      ;;
+  esac
   return 0
 }
 
@@ -158,6 +222,10 @@ kill_guard() {
 do_exec() {
   ACT="$1"
   case "$ACT" in
+    # v3.4.32: 应急解锁 (锁机木马防护): freeze/uninstall/remove_admin/clear_overlay/lockscreen_clear
+    emergency_unblock\ *)
+      do_emergency "$ACT"
+      ;;
     drop_caches)
       if echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; then add_res "$ACT" ok "已释放页缓存"
       else add_res "$ACT" fail "drop_caches 失败 (权限不足)"; fi
@@ -194,8 +262,56 @@ do_exec() {
       # 前台应用保护
       FG=$(detect_foreground)
       case "$FG" in *"$PKG"*) add_res "$ACT" skip "跳过前台应用 $PKG"; return ;; esac
+      # v3.4.22: 媒体播放保护 — 正在播放音频的应用不得 force-stop
+      if is_media_playing "$PKG"; then add_res "$ACT" skip "跳过正在播放音频 $PKG"; return; fi
       if am force-stop "$PKG" 2>/dev/null; then add_res "$ACT" ok "已强制停止 $PKG"
       else add_res "$ACT" fail "force-stop $PKG 失败"; fi
+      ;;
+    # v3.4.21: 一键清理全部大缓存应用 (>=50MB, 复用单应用清理逻辑与保护名单)
+    # 参数: clean_cache_all [阈值MB, 默认50] — 只清理 scan_cache 的大缓存集合, 不全量扫
+    clean_cache_all\ *)
+      TH=$(echo "$ACT" | awk '{print $2}')
+      case "$TH" in ''|*[!0-9]*) TH=50 ;; esac
+      [ "$TH" -ge 10 ] && [ "$TH" -le 2048 ] || TH=50
+      # v3.2.35: du 经 init 命名空间 (root shell 的 mount ns 里 /data/data 被隔离)
+      OUT=$(if [ -n "$NSH" ]; then
+             $NSH sh -c 'du -sk /data/data/*/code_cache /data/data/*/cache 2>/dev/null'
+           else
+             du -sk /data/data/*/code_cache /data/data/*/cache 2>/dev/null
+           fi | awk -v TH=$((TH * 1024)) '$1 >= TH {printf "%s\t%s\n", $1, $2}' | sort -rn | head -20)
+      if [ -z "$OUT" ]; then add_res "$ACT" ok "无大缓存应用 (阈值 ${TH}MB)"; return; fi
+      # v3.4.21: 提取去重包名列表 (while 读管道会子 shell 化丢失计数器, 改 for + 数组)
+      PKGLIST=$(echo "$OUT" | awk -F'\t' '{print $2}' | awk -F/ '{print $4}' | sort -u)
+      FG=$(detect_foreground 2>/dev/null)
+      OK_CNT=0; SKIP_CNT=0; FAIL_CNT=0; SKIP_MSG=''
+      OLDIFS=$IFS; IFS='
+'
+      for PKG in $PKGLIST; do
+        IFS=$OLDIFS
+        [ -n "$PKG" ] || continue
+        case "$PKG" in ''|*[!a-zA-Z0-9._-]*) continue ;; esac
+        # 保护名单同 clean_cache: 缓存敏感应用跳过
+        SKIP=0
+        for rk in $PKG_CACHE_RISK; do
+          case "$PKG" in *"$rk"*) SKIP=1; SKIP_MSG="$SKIP_MSG $PKG(敏感)"; break ;; esac
+        done
+        if [ "$SKIP" -eq 0 ]; then
+          case "$FG" in *"$PKG"*) SKIP=1; SKIP_MSG="$SKIP_MSG $PKG(前台)" ;; esac
+        fi
+        if [ "$SKIP" -eq 1 ]; then SKIP_CNT=$((SKIP_CNT + 1)); continue; fi
+        if [ -n "$NSH" ]; then
+          $NSH sh -c 'rm -rf "/data/data/'"$PKG"'/code_cache"/* "/data/data/'"$PKG"'/cache"/*' 2>/dev/null
+          $NSH sh -c "[ -d '/data/data/$PKG' ]" 2>/dev/null && OK_CNT=$((OK_CNT + 1)) || FAIL_CNT=$((FAIL_CNT + 1))
+        else
+          rm -rf "/data/data/$PKG/code_cache"/* "/data/data/$PKG/cache"/* 2>/dev/null
+          [ -d "/data/data/$PKG" ] && OK_CNT=$((OK_CNT + 1)) || FAIL_CNT=$((FAIL_CNT + 1))
+        fi
+      done
+      IFS=$OLDIFS
+      MSG="已清理 $OK_CNT 个应用"
+      [ "$SKIP_CNT" -gt 0 ] && MSG="$MSG, 跳过 $SKIP_CNT 个$SKIP_MSG"
+      [ "$FAIL_CNT" -gt 0 ] && MSG="$MSG, 失败 $FAIL_CNT 个"
+      add_res "$ACT" ok "$MSG"
       ;;
     # v3.2.34: 清理单个应用缓存 (pm clear-cache 不碰数据)
     clean_cache\ *)
@@ -339,6 +455,35 @@ do_exec() {
         add_res "$ACT" fail "GPU 锁频写入失败"
       fi
       ;;
+    # v3.4.9: AI 白名单管理动作 — 持久化写入用户白名单文件
+    # whitelist add <包名>: 追加到用户白名单 (kill_guard 以后不再杀该包)
+    # whitelist remove <包名>: 从用户白名单移除
+    # 安全护栏: PKG_PROTECTED 系统应用禁止加入 (否则 kill_guard 永久失效)
+    whitelist\ add\ *)
+      PKG=$(echo "$ACT" | awk '{print $3}')
+      case "$PKG" in ''|*[!a-zA-Z0-9._-]*) add_res "$ACT" fail "无效包名"; return ;; esac
+      case " $PKG_PROTECTED " in *" $PKG "*) add_res "$ACT" skip "跳过系统/宿主应用 $PKG"; return ;; esac
+      if is_pkg_whitelisted "$PKG"; then add_res "$ACT" skip "$PKG 已在白名单"; return; fi
+      if printf '%s\n' "$PKG" >> "$WL_FILE" 2>/dev/null; then
+        PKG_WHITELIST="$PKG_WHITELIST $PKG"
+        add_res "$ACT" ok "已将 $PKG 加入白名单"
+      else
+        add_res "$ACT" fail "写入白名单失败"
+      fi
+      ;;
+    whitelist\ remove\ *)
+      PKG=$(echo "$ACT" | awk '{print $3}')
+      case "$PKG" in ''|*[!a-zA-Z0-9._-]*) add_res "$ACT" fail "无效包名"; return ;; esac
+      if ! is_pkg_whitelisted "$PKG"; then add_res "$ACT" skip "$PKG 不在白名单"; return; fi
+      case " $PKG_PROTECTED " in *" $PKG "*) add_res "$ACT" skip "系统应用 $PKG"; return ;; esac
+      if grep -vx "$PKG" "$WL_FILE" > "$WL_FILE.tmp" 2>/dev/null && mv "$WL_FILE.tmp" "$WL_FILE"; then
+        PKG_WHITELIST=$(printf '%s' "$PKG_WHITELIST" | tr ' ' '\n' | grep -vx "$PKG" | tr '\n' ' ')
+        add_res "$ACT" ok "已将 $PKG 移出白名单"
+      else
+        add_res "$ACT" fail "移出白名单失败"
+        rm -f "$WL_FILE.tmp" 2>/dev/null
+      fi
+      ;;
     # v3.2.92: GPU 解除限频 (恢复最高档)
     gpu\ restore)
       PWR=/sys/class/kgsl/kgsl-3d0/max_pwrlevel
@@ -361,6 +506,8 @@ do_exec() {
         *launcher*|*inputmethod*|*systemui*) add_res "$ACT" skip "跳过关键应用 $PKG (冻结影响系统)"; return ;;
       esac
       if is_pkg_whitelisted "$PKG"; then add_res "$ACT" skip "跳过白名单应用 $PKG"; return; fi
+      # v3.4.22: 媒体播放保护 — 冻结播放中应用会立即停止播放
+      if is_media_playing "$PKG"; then add_res "$ACT" skip "跳过正在播放音频 $PKG"; return; fi
       if pm disable-user "$PKG" >/dev/null 2>&1; then
         add_res "$ACT" ok "已冻结 $PKG (后台不再运行)"
       else
@@ -406,6 +553,69 @@ do_exec() {
   esac
 }
 
+# ---- v3.4.32: 应急解锁动作 (锁机木马防护的执行侧) ----
+# 供 AI actions / 面板按钮调用, 格式 emergency_unblock <子动作> [参数]
+# 子动作 (全部包名白名单校验, 拒绝任意 shell 注入):
+#   freeze <pkg>           禁用恶意应用 (pm disable-user, 可逆, 优先用)
+#   uninstall <pkg>        卸载恶意应用 (pm uninstall)
+#   remove_admin <pkg/cls> 撤销设备管理器 (dpm remove-active-admin, 锁机恢复关键)
+#   clear_overlay <pkg>    关悬浮窗权限 (cmd appops set ... SYSTEM_ALERT_WINDOW ignore)
+#   lockscreen_clear       清锁屏凭据 (rm locksettings.db*, 需重启生效; 慎用)
+do_emergency() {
+  ACT="$1"
+  SUB=$(echo "$ACT" | awk '{print $2}')
+  ARG=$(echo "$ACT" | awk '{print $3}')
+  # lockscreen_clear / disable_accessibility 无需参数, 直接放行
+  if [ "$SUB" != 'lockscreen_clear' ] && [ "$SUB" != 'disable_accessibility' ]; then
+    # 包名/组件名严格校验: 只允许 [A-Za-z0-9._-], 拒绝 shell 元字符
+    case "$ARG" in
+      ''|*[!A-Za-z0-9._-]*) add_res "$ACT" fail "参数非法或缺失 (仅允许包名/组件名)"; return ;;
+    esac
+  fi
+  case "$SUB" in
+    freeze)
+      if pm disable-user "$ARG" >/dev/null 2>&1; then add_res "$ACT" ok "已禁用 $ARG"
+      else add_res "$ACT" fail "禁用 $ARG 失败 (应用不存在或系统组件)"; fi
+      ;;
+    uninstall)
+      if pm uninstall "$ARG" >/dev/null 2>&1; then add_res "$ACT" ok "已卸载 $ARG"
+      else add_res "$ACT" fail "卸载 $ARG 失败"; fi
+      ;;
+    remove_admin)
+      if dpm remove-active-admin "$ARG" >/dev/null 2>&1; then add_res "$ACT" ok "已撤销设备管理器 $ARG"
+      else add_res "$ACT" fail "撤销 $ARG 失败 (它可能已不是活跃设备管理器)"; fi
+      ;;
+    clear_overlay)
+      if cmd appops set "$ARG" SYSTEM_ALERT_WINDOW ignore >/dev/null 2>&1; then add_res "$ACT" ok "已关闭 $ARG 悬浮窗权限"
+      else add_res "$ACT" fail "关闭 $ARG 悬浮窗失败"; fi
+      ;;
+    # v3.4.32: 无障碍锁机恢复 — 清空辅助服务列表 (无障碍锁机 = 恶意应用拿辅助服务后模拟点击绕验证)
+    # 参数为包名时只移除该包, 无参数时清空整个列表
+    disable_accessibility)
+      if [ -z "$ARG" ]; then
+        # v3.4.32: 清空全部辅助服务 (无障碍锁机应急)
+        settings put secure enabled_accessibility_services "" 2>/dev/null
+        settings put secure accessibility_enabled 0 2>/dev/null
+        add_res "$ACT" ok "已清空全部辅助服务 (无障碍锁机应急; 系统服务需重新在设置中开启)"
+      else
+        # 只移除指定包: 读当前列表过滤掉目标包再写回
+        _CUR_ACC=$(settings get secure enabled_accessibility_services 2>/dev/null)
+        case "$_CUR_ACC" in null|'') _CUR_ACC='' ;; esac
+        _NEW_ACC=$(printf '%s' "$_CUR_ACC" | tr ':' '\n' | grep -v "^$ARG" | paste -sd':' - 2>/dev/null)
+        settings put secure enabled_accessibility_services "$_NEW_ACC" 2>/dev/null
+        add_res "$ACT" ok "已从辅助服务列表移除 $ARG (剩余: ${_NEW_ACC:-无})"
+      fi
+      ;;
+    lockscreen_clear)
+      rm -rf /data/system/locksettings.db /data/system/locksettings.db-journal /data/system/locksettings.db-wal /data/system/locksettings.db-shm 2>/dev/null
+      add_res "$ACT" ok "已清除锁屏凭据数据库 (重启后生效; 若设备已设密码, 谨慎使用)"
+      ;;
+    *)
+      add_res "$ACT" fail "未知子动作 $SUB (可用: freeze/uninstall/remove_admin/clear_overlay/lockscreen_clear)"
+      ;;
+  esac
+}
+
 # ---- 一键优化 ----
 # v3.1.10: 宿主 App 白名单 - 一键优化杀掉正在显示面板的 KernelSU/SukiSU/Magisk 管理器会导致面板闪退
 HOST_PROTECTED="sukisu kernelsu magisk ksu ricekernel apatch magisk_delta zafiro"
@@ -421,9 +631,27 @@ do_optimize() {
   : > "$RESFILE" 2>/dev/null
   # v3.1.10: 前台 App (dumpsys) 与宿主白名单一并传入 awk, 一键优化与单条 exec 保护一致
   FGP=$(detect_foreground 2>/dev/null)
-  ps -A -o pid,rss,comm 2>/dev/null | awk -v resfile="$RESFILE" -v prot="$PROTECTED $PKG_PROTECTED" -v host="$HOST_PROTECTED" -v wl="$PKG_WHITELIST" -v fg="$FGP" '
-  BEGIN { split(prot, P, " "); np = 0; for (k in P) { np++; KEYS[np] = P[k] }; split(host, H, " "); nh = 0; for (k in H) { nh++; HK[nh] = H[k] }; split(wl, W, " "); nw = 0; for (k in W) { nw++; WL[nw] = W[k] } }
-  $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $2 >= 302920 {
+  # v3.4.22: 媒体播放列表传给 awk (正在播放音频的应用不杀)
+  MPKGS=$(detect_media_playing 2>/dev/null)
+  # v3.4.24: RSS 阈值自适应 — 旧固定值 302920KB(296MB) 是 4GB 设备时代的设定,
+  # 8GB 设备上 296MB+ 进程太少导致一键优化"永远 killed:0" (实测 before:65→after:65)
+  # 新策略: 基础阈值 = 总内存的 3% (8GB→232MB, 4GB→116MB, 12GB→348MB)
+  #         压力升档: PSI mem some avg10 > 30 (真实内存停滞) 时阈值降 40% (8GB→139MB)
+  #         下限 81920KB(80MB): 再低会误杀系统常驻小进程
+  MEM_TOTAL_KB=$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null)
+  case "$MEM_TOTAL_KB" in ''|*[!0-9]*) MEM_TOTAL_KB=7733500;; esac   # 兜底 8GB
+  RSS_MIN_KB=$(( MEM_TOTAL_KB / 33 ))     # 3%
+  # PSI some avg10 (内存阻塞率)
+  PSI_S10=$(awk '/^some/{for(i=2;i<=NF;i++){split($i,kv,"=");if(kv[1]=="avg10")print kv[2]}}' /proc/pressure/memory 2>/dev/null)
+  case "$PSI_S10" in ''|*[!0-9.]*) PSI_S10=0;; esac
+  if awk -v p="$PSI_S10" 'BEGIN{exit !(p>30)}'; then
+    RSS_MIN_KB=$(( RSS_MIN_KB * 3 / 5 ))   # 压力大, 降 40% 阈值
+  fi
+  # 下限 80MB
+  [ "$RSS_MIN_KB" -lt 81920 ] && RSS_MIN_KB=81920
+  ps -A -o pid,rss,comm 2>/dev/null | awk -v resfile="$RESFILE" -v prot="$PROTECTED $PKG_PROTECTED" -v host="$HOST_PROTECTED" -v wl="$PKG_WHITELIST" -v fg="$FGP" -v mp="$MPKGS" -v minrss="$RSS_MIN_KB" '
+  BEGIN { split(prot, P, " "); np = 0; for (k in P) { np++; KEYS[np] = P[k] }; split(host, H, " "); nh = 0; for (k in H) { nh++; HK[nh] = H[k] }; split(wl, W, " "); nw = 0; for (k in W) { nw++; WL[nw] = W[k] };_nm = split(mp, M, " ") }
+  $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $2 >= minrss {
     pid = $1 + 0; rss = int($2 / 1024)
     cmdfile = "/proc/" pid "/cmdline"
     cmd = ""
@@ -451,6 +679,11 @@ do_optimize() {
     if (!skip && (lcomm ~ /systemui/ || lcomm ~ /launcher/ || lcomm ~ /inputmethod/ || lcomm ~ /zygote/)) { skip = 1; reason = "系统进程" }
     # v3.1.9: 前台 App 保护 (与 do_exec 的 is_pkg_protected 一致)
     if (!skip && fg != "" && fg != "unknown" && index(lcmd, tolower(fg)) > 0) { skip = 1; reason = "前台应用" }
+    # v3.4.22: 媒体播放保护 — 正在播放音频的应用不杀 (mp 列表由 optimize 主体传入)
+    if (!skip && _nm > 0) {
+      wp2 = lcmd; wi2 = index(wp2, ":"); if (wi2 > 0) wp2 = substr(wp2, 1, wi2 - 1)
+      for (k2 = 1; k2 <= _nm; k2++) { if (wp2 == M[k2]) { skip = 1; reason = "正在播放音频"; break } }
+    }
     if (skip) { printf "%s", "{\"action\":\"kill " pid "\",\"status\":\"skip\",\"msg\":\"跳过" reason " " comm "\"}," >> resfile; next }
     if (system("kill " pid) == 0) {
       printf "%s", "{\"action\":\"kill " pid "\",\"status\":\"ok\",\"msg\":\"一键优化: 结束 " comm " (" rss "MB)\"}," >> resfile

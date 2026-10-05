@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.6 - 后台采集循环
+# Atria Monitor v3.4.34 - 后台采集循环
 # v3.2.36: 白名单图标后台刷新 (refresh_icons, 检测白名单 mtime 变化, 后台提取不阻塞采集)
 # v3.2.34: 补全 PATH (开机服务阶段 PATH 可能残缺)
 export PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:$PATH
@@ -69,6 +69,8 @@ PLOG=/data/local/tmp/atria_collect.log
 # v3.2.34: 日志滚动改为按写入计数触发 (原每次 plog 都 fork wc 统计行数)
 _PLOG_CNT=0
 . "$DIR/atria_inject98.sh"   # v3.2.98: wakelock + du 注入函数
+# v3.4.20: 应用名标签缓存 tick (每 300 周期刷一次, 初始化 300 = 首个周期立即生成)
+LB_TICK=300
 plog() {
   echo "$(date '+%H:%M:%S') $1" >> "$PLOG" 2>/dev/null
   _PLOG_CNT=$((_PLOG_CNT + 1))
@@ -440,6 +442,30 @@ inject_kernel() {
       KJ="$KJ,\"anr_age_s\":$_AGE"
     fi
   fi
+
+  # v3.4.23: IO 压力 (/proc/pressure/io) — 卡顿与该清缓存的直接判据
+  if [ -r /proc/pressure/io ]; then
+    KJ="$KJ$(awk '
+      /^some/ { for (i = 2; i <= NF; i++) { split($i, kv, "=")
+        if (kv[1] == "avg10") is10 = kv[2]; if (kv[1] == "avg300") is300 = kv[2] } }
+      /^full/ { for (i = 2; i <= NF; i++) { split($i, kv, "=")
+        if (kv[1] == "avg10") if10 = kv[2] } }
+      END { printf ",\"psi_io\":{\"s10\":%s,\"s300\":%s,\"f10\":%s}", is10+0, is300+0, if10+0 }
+    ' /proc/pressure/io 2>/dev/null)"
+  fi
+  # v3.4.23: CPU 压力 (/proc/pressure/cpu) — some=任务在等 CPU, full=所有核都忙
+  if [ -r /proc/pressure/cpu ]; then
+    KJ="$KJ$(awk '
+      /^some/ { for (i = 2; i <= NF; i++) { split($i, kv, "=")
+        if (kv[1] == "avg10") cs10 = kv[2]; if (kv[1] == "avg300") cs300 = kv[2] } }
+      END { printf ",\"psi_cpu\":{\"s10\":%s,\"s300\":%s}", cs10+0, cs300+0 }
+    ' /proc/pressure/cpu 2>/dev/null)"
+  fi
+  # v3.4.23: 系统负载 (/proc/loadavg) — 1/5/15 分钟均值与运行队列
+  if [ -r /proc/loadavg ]; then
+    KJ="$KJ$(awk '{ load1=$1; load5=$2; load15=$3; split($4, rq, "/");
+      printf ",\"loadavg\":{\"m1\":%s,\"m5\":%s,\"m15\":%s,\"running\":%s,\"total\":%s}", load1, load5, load15, rq[1], rq[2] }' /proc/loadavg 2>/dev/null)"
+  fi
   # ---- 拼接到 JSON 尾部 (替换最后的 "}") ----
   if [ -n "$KJ" ]; then
     KJ=${KJ#,}
@@ -463,15 +489,38 @@ while true; do
     inject_kernel
     inject_wl
     inject_du
+    inject_power
+    inject_labels
+    # v3.4.22: 媒体播放状态注入 (AI payload 用, 知道谁在放音乐)
+    inject_media
+    # v3.4.25: 电池增强注入 (SoH/循环次数/充电功率/型号, BE_TICK=30 周期缓存)
+    inject_batt_ext
+    # v3.4.25: 每应用流量排行 (dumpsys netstats, NS_TICK=60 周期缓存)
+    inject_net_stats
+    # v3.4.32: 屏幕状态 (SC_TICK=5), 通知计数 (NT_TICK=30), 崩溃记录 (DB_TICK=120)
+    inject_screen
+    inject_notif
+    inject_crashes
+    # v3.4.32: 系统安全防护 (SEC_TICK=30, 与通知同频; 威胁面: 设备管理器/辅助服务/通知监听/锁屏凭据/新增包)
+    inject_security
+    # v3.4.20: 应用名标签缓存 (耗电排行详情用), 每 300 采样周期刷一次 (~15分钟), 低频不当家
+    LB_TICK=$((LB_TICK + 1))
+    if [ "$LB_TICK" -ge 300 ]; then
+      LB_TICK=0
+      sh "$DIR/pkg_label.sh" >/dev/null 2>&1 &
+    fi
   else
     DATA=$(sh "$DIR/collect.sh" 2>/dev/null)
     # v3.2.92: shell 回退分支也补注入 — C 采集器偶发无输出回退时, cpu_pct/logcat 不能丢
-    if [ -n "$DATA" ]; then
+if [ -n "$DATA" ]; then
       inject_cpu
       inject_logcat
       inject_kernel
       inject_wl
       inject_du
+      inject_power
+      inject_labels
+      inject_media
     fi
   fi
   if [ -z "$DATA" ] && [ "$USE_C" = "1" ]; then

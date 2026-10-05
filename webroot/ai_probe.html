@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atria AI 探针</title>
+<style>
+  body { background:#0b1220; color:#e2e8f0; font-family:system-ui,sans-serif; padding:16px; font-size:14px; }
+  h1 { font-size:18px; color:#38bdf8; margin:0 0 12px; }
+  button { background:#0ea5e9; color:#fff; border:none; border-radius:8px; padding:10px 18px; font-size:15px; width:100%; }
+  button:disabled { background:#475569; }
+  #out { margin-top:14px; white-space:pre-wrap; font-family:ui-monospace,monospace; font-size:12.5px; line-height:1.7; }
+  .ok { color:#4ade80; } .bad { color:#f87171; } .warn { color:#facc15; } .dim { color:#94a3b8; }
+</style>
+</head>
+<body>
+<h1>Atria AI 请求链路探针 <span class="dim" id="ver"></span></h1>
+<button id="run">▶ 开始探测</button>
+<div id="out"></div>
+<script>
+const out = document.getElementById('out');
+const btn = document.getElementById('run');
+const log = (cls, t) => { const s = document.createElement('span'); s.className = cls; s.textContent = t + '\n'; out.appendChild(s); };
+document.getElementById('ver').textContent = 'v3.4.7';
+
+let execFn = null;
+function loadExec() {
+  const g = (typeof ksu !== 'undefined') ? ksu : (typeof ksustub !== 'undefined') ? ksustub : (typeof apatch !== 'undefined') ? apatch : null;
+  if (g && typeof g.exec === 'function') { execFn = async (c) => { const r = await g.exec(c); return (r && typeof r === 'object') ? r.stdout : r; }; return 'ksu injected'; }
+  return null;
+}
+
+function fetchWithTimeout(url, opts, ms) {
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), ms);
+  return fetch(url, Object.assign({}, opts, { signal: ac.signal }))
+    .then(r => { clearTimeout(tid); return r; }, e => { clearTimeout(tid); throw e; });
+}
+
+async function readConf() {
+  const raw = await execFn('cat /data/adb/atria_ai.conf 2>/dev/null');
+  return raw ? JSON.parse(String(raw).trim()) : null;
+}
+
+async function step(name, fn) {
+  const t0 = Date.now();
+  try { const v = await fn(); return { name, ms: Date.now() - t0, ok: true, val: v }; }
+  catch (e) { return { name, ms: Date.now() - t0, ok: false, err: String(e.message || e).slice(0, 120) }; }
+}
+
+btn.addEventListener('click', async () => {
+  btn.disabled = true; out.textContent = '';
+  log('dim', '=== 探针开始 ' + new Date().toLocaleTimeString() + ' ===');
+
+  const s1 = await step('exec 通道建立', () => Promise.resolve(loadExec()));
+  log(s1.ok && s1.val ? 'ok' : 'bad', '[exec 通道建立] ' + s1.ms + 'ms ' + (s1.ok ? s1.val : 'FAILED: ' + s1.err));
+  if (!s1.ok || !s1.val) { log('bad', '没有 exec 通道, 探针结束'); btn.disabled = false; return; }
+
+  const s2 = await step('读取 AI 配置', readConf);
+  if (!s2.ok || !s2.val) { log('bad', '[读取 AI 配置] ' + s2.ms + 'ms 失败: ' + (s2.err || '配置为空')); btn.disabled = false; return; }
+  const cfg = s2.val;
+  log('ok', '[读取 AI 配置] ' + s2.ms + 'ms model=' + cfg.model);
+
+  const url = String(cfg.base_url || 'https://api.deepseek.com/v1').replace(/\/+$/, '') + '/chat/completions';
+  const body = JSON.stringify({ model: cfg.model || 'deepseek-chat',
+    messages: [{ role: 'user', content: '只回复四个字: 探针正常' }], max_tokens: 100 });
+
+  const s3 = await step('WebView fetch (8s 超时)', async () => {
+    const resp = await fetchWithTimeout(url, { method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + cfg.api_key, 'Content-Type': 'application/json' }, body }, 8000);
+    const t = await resp.text();
+    if (!t) throw new Error('响应体为空');
+    return t;
+  });
+  log(s3.ok ? 'ok' : 'bad', '[WebView fetch] ' + s3.ms + 'ms ' + (s3.ok ? '成功 输出' + String(s3.val).length + 'B' : '失败: ' + s3.err));
+
+  const s4 = await step('curl via exec (15s 超时)', async () => {
+    const cmd = "curl -s -m 15 -X POST '" + url + "' -H 'Authorization: Bearer " + cfg.api_key + "' -H 'Content-Type: application/json' -d '" + body.replace(/'/g, "'\\''") + "'";
+    const t = await execFn(cmd);
+    if (!t) throw new Error('curl 输出为空');
+    return t;
+  });
+  log(s4.ok ? 'ok' : 'bad', '[curl via exec] ' + s4.ms + 'ms ' + (s4.ok ? '成功 输出' + String(s4.val).length + 'B' : '失败: ' + s4.err));
+
+  log('dim', '=== 判读 ===');
+  if (s3.ok && s3.ms < 4000) log('ok', 'fetch 通道又快又好 → 面板卡慢与请求通道无关, 查负载/温控');
+  else if (s3.ok) log('warn', 'fetch 能通但慢 (' + s3.ms + 'ms) → 高负载降频或网络抖动');
+  else if (s4.ok && s4.ms < 5000) log('warn', 'fetch 失败但 curl 秒回 → 面板卡在 fetch 超时等待, 建议 3 秒不出结果就切 curl');
+  else if (s4.ok) log('warn', 'curl 也慢 (' + s4.ms + 'ms) → 网络或 exec 桥接问题');
+  else log('bad', '两条通道都失败 → 网络/API key 问题');
+
+  if (s4.ok) { try { const d = JSON.parse(String(s4.val));
+    if (d.error) log('bad', 'API 返回错误: ' + String(d.error.message).slice(0, 100));
+    else log('ok', 'API 正常返回, finish_reason=' + (d.choices && d.choices[0] && d.choices[0].finish_reason)); } catch (_) {} }
+  log('dim', '=== 探针结束 ===');
+  btn.disabled = false;
+});
+</script>
+</body>
+</html>

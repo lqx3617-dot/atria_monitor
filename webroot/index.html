@@ -224,6 +224,17 @@ input[type="checkbox"] { accent-color: var(--acc); width: 16px; height: 16px; cu
 .ipt::placeholder { color: #475569; }
 .lbl { font-size: 13px; color: #94a3b8; display: block; }
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+
+/* v3.4.19: 卡片可点击 — 悬停浮起 + 按压回弹, 点击弹出详情 */
+.card[data-card] { cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.card[data-card]:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45); border-color: rgba(56, 189, 248, 0.4); }
+.card[data-card]:active { transform: translateY(0) scale(0.985); }
+.dm-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid rgba(148, 163, 184, 0.1); font-variant-numeric: tabular-nums; }
+.dm-row:last-child { border-bottom: none; }
+.dm-k { color: #94a3b8; flex-shrink: 0; }
+.dm-v { color: #e2e8f0; text-align: right; word-break: break-all; }
+.dm-sub { margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(148, 163, 184, 0.2); color: #64748b; font-size: 11px; line-height: 1.7; }
+
 .grid10 { display: grid; gap: 10px; }
   /* v3.2.34: 后台进程列表 */
    /* v3.4.4: 限高改视口自适应 — 高屏直接显示更多行, 不用滚动也能看到排在后面的子进程条目 */
@@ -292,7 +303,8 @@ h2 .ic { width:16px; height:16px; vertical-align:-0.24em; margin-right:6px; }
 .card.u-mini .value { font-size: 20px; }
 .card.u-mini .label { font-size: 12px; }
 .card.u-mini .bar { height: 6px; }
-.card.u-mini .detail { display: none; }
+.card.u-mini .detail { display: block; font-size: 11px; }
+/* v3.4.18: mini 卡副标题恢复显示 — 存储/网速的简短信息有实际价值, 原设计 display:none 导致数据有但看不到 */
 /* 次要按钮收纳行 */
 .u-more { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; margin-top: 8px;
   padding-top: 8px; border-top: 1px solid var(--brd); }
@@ -513,41 +525,42 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
 <div class="wrap">
   <h1 class="brand"><span class="brand-badge"><svg class="ic"><use href="#i-phone"/></svg></span><span class="brand-title">Atria Monitor</span><span id="dev" class="sub"></span><span class="top-actions"><button id="logBtn" class="btn btn-ghost top-btn" title="查看运行日志"><svg class="ic"><use href="#i-log"/></svg></button><button id="settingsBtn" class="btn btn-ghost top-btn" title="设置"><svg class="ic"><use href="#i-settings"/></svg></button></span></h1>
   <div class="cards">
-    <div class="card u-core">
+    <div class="card u-core" data-card="mem">
       <span class="dot" id="memDot" style="color:#4ade80;background:#4ade80"></span>
       <div class="label">内存占用</div>
       <div id="memPct" class="value green">--</div>
       <div class="bar"><div id="memBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
       <div id="memDetail" class="detail"></div>
     </div>
-    <div class="card">
+    <div class="card" data-card="cpu">
       <span class="dot" id="cpuDot" style="color:#4ade80;background:#4ade80"></span>
       <div class="label">CPU 占用</div>
       <div id="cpuPct" class="value green">--</div>
       <div class="bar"><div id="cpuBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
+      <div id="cpuDetail" class="detail"></div>
     </div>
-    <div class="card u-sec">
+    <div class="card u-sec" data-card="temp">
       <span class="dot" id="tempDot" style="color:#4ade80;background:#4ade80"></span>
       <div class="label">温度 (CPU)</div>
       <div id="tempVal" class="value green">--</div>
       <div class="bar"><div id="tempBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
       <div id="tempDetail" class="detail"></div>
     </div>
-    <div class="card u-sec">
+    <div class="card u-sec" data-card="batt">
       <span class="dot" id="battDot" style="color:#4ade80;background:#4ade80"></span>
       <div class="label">电池</div>
       <div id="battVal" class="value green">--</div>
       <div class="bar"><div id="battBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
       <div id="battDetail" class="detail"></div>
     </div>
-    <div class="card u-mini">
+    <div class="card u-mini" data-card="store">
       <span class="dot" id="storeDot" style="color:#4ade80;background:#4ade80"></span>
       <div class="label">存储 /data</div>
       <div id="storeVal" class="value green">--</div>
       <div class="bar"><div id="storeBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
       <div id="storeDetail" class="detail"></div>
     </div>
-    <div class="card u-mini">
+    <div class="card u-mini" data-card="net">
       <span class="dot" id="netDot" style="color:#4ade80;background:#4ade80"></span>
       <div class="label">网速</div>
       <div id="netVal" class="value green">--</div>
@@ -555,12 +568,26 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
       <div id="netDetail" class="detail"></div>
     </div>
     <!-- v3.2.98: 耗电来源 - 息屏掉电根因: wakelock 持有者 -->
-    <div class="card u-mini">
+    <div class="card u-mini" data-card="wl">
       <span class="dot" id="wlDot" style="color:#4ade80;background:#4ade80"></span>
       <div class="label">耗电来源</div>
       <div id="wlVal" class="value green">--</div>
       <div class="bar"><div id="wlBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
       <div id="wlDetail" class="detail"></div>
+    </div>
+    <!-- v3.4.13: 应用耗电排行榜 — 哪个应用最耗电 (batterystats mAh) -->
+    <div class="card u-mini" data-card="pw">
+      <span class="dot" id="pwDot" style="color:#38bdf8;background:#38bdf8"></span>
+      <div class="label">耗电排行</div>
+      <div id="pwVal" class="value" style="color:#38bdf8">--</div>
+      <div id="pwList" style="font-size:11px;color:#94a3b8;line-height:1.7;margin-top:2px"></div>
+    </div>
+    <!-- v3.4.32: 系统状态 — 息屏/通知/崩溃 (点击看详情) -->
+    <div class="card u-mini" data-card="sys">
+      <span class="dot" id="sysDot" style="color:#a78bfa;background:#a78bfa"></span>
+      <div class="label">系统状态</div>
+      <div id="sysVal" class="value" style="color:#a78bfa">--</div>
+      <div id="sysDetail" class="detail">息屏 · 通知 · 崩溃</div>
     </div>
   </div>
   <div class="box">
@@ -579,6 +606,8 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
       <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:3px;border-radius:2px;background:#38bdf8"></span>内存占用 (%)</span>
       <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:3px;border-radius:2px;background:#f59e0b"></span>CPU 占用 (%)</span>
       <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #f87171"></span>温度 (℃, 0–80 独立量程)</span>
+      <!-- v3.4.32: 电池曲线 (0-100 与内存同量程) -->
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #4ade80"></span>电池电量 (%)</span>
     </div>
     <div id="histInfo" style="font-size:11px;color:#64748b;margin-top:4px"></div>
   </div>
@@ -675,7 +704,7 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
 // v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
 // v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
 // __atriaVer and UI now reference this constant instead of duplicating the literal.
-const VER_TAG = 'v3.4.6';
+const VER_TAG = 'v3.4.34';
 const LOG_MAX = 500;
 const logBuf = [];
 // v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)
@@ -720,12 +749,15 @@ const SEV_TXT = { '高': 'red', '中': 'yellow', '低': 'green' };
 const SEV_CLS = { '高': 'hi', '中': 'md' };
 const memEl = document.getElementById('memPct'), memBar = document.getElementById('memBar');
 const memD = document.getElementById('memDetail');
-const cpuEl = document.getElementById('cpuPct'), cpuBar = document.getElementById('cpuBar');
+const cpuEl = document.getElementById('cpuPct'), cpuBar = document.getElementById('cpuBar'), cpuD = document.getElementById('cpuDetail');
 const tempEl = document.getElementById('tempVal'), tempBar = document.getElementById('tempBar'), tempD = document.getElementById('tempDetail');
 const battEl = document.getElementById('battVal'), battBar = document.getElementById('battBar'), battD = document.getElementById('battDetail');
 const storeEl = document.getElementById('storeVal'), storeBar = document.getElementById('storeBar'), storeD = document.getElementById('storeDetail');
 const netEl = document.getElementById('netVal'), netBar = document.getElementById('netBar'), netD = document.getElementById('netDetail');
 const wlEl = document.getElementById('wlVal'), wlBar = document.getElementById('wlBar'), wlD = document.getElementById('wlDetail'), wlDot = document.getElementById('wlDot');
+const pwEl = document.getElementById('pwVal'), pwListEl = document.getElementById('pwList'), pwDot = document.getElementById('pwDot');
+// v3.4.32: 系统状态卡片 (息屏/通知/崩溃)
+const sysValEl = document.getElementById('sysVal'), sysDot = document.getElementById('sysDot');
 const procEl = document.getElementById('procs'), procCntEl = document.getElementById('procCount');
 const devEl = document.getElementById('dev'), altEl = document.getElementById('alerts'), alertHistBadge = document.getElementById('alertHistBadge');
 const modEl = document.getElementById('modules');
@@ -781,7 +813,7 @@ const AI_CONF_PERSIST = '/data/adb/atria_ai.conf';
 const OPT_PATH = (MOD_PATH || MOD_PATHS[0]) + '/scripts/optimize.sh';
 const COLLECT_CMD = 'sh ' + (MOD_PATH || MOD_PATHS[0]) + '/scripts/collect.sh';
 // v3.2.34: 扩充白名单 - 缓存清理 / 自启管理 / 省电 / 性能调校
-const ACT_OK = /^(kill [1-9][0-9]{0,5}|am force-stop [a-zA-Z0-9._-]+|drop_caches|clean_cache [a-zA-Z0-9._-]+|scan_cache \w+|autostart (block|unblock) [a-zA-Z0-9._-]+|powersave (on|off)|perf (performance|powersave|schedutil|interactive)|vm swappiness (?:[0-9]|[1-9][0-9]|1[0-9][0-9]|200)|vm restore|vm compact|gpu cap [0-9]|gpu restore|freeze [a-zA-Z0-9._-]+|unfreeze [a-zA-Z0-9._-]+|module (enable|disable) [a-zA-Z0-9._-]+)$/;
+const ACT_OK = /^(kill [1-9][0-9]{0,5}|am force-stop [a-zA-Z0-9._-]+|drop_caches|clean_cache [a-zA-Z0-9._-]+|clean_cache_all( [0-9]{1,4})?|scan_cache \w+|autostart (block|unblock) [a-zA-Z0-9._-]+|powersave (on|off)|perf (performance|powersave|schedutil|interactive)|vm swappiness (?:[0-9]|[1-9][0-9]|1[0-9][0-9]|200)|vm restore|vm compact|gpu cap [0-9]|gpu restore|freeze [a-zA-Z0-9._-]+|unfreeze [a-zA-Z0-9._-]+|whitelist (add|remove) [a-zA-Z0-9._-]+|module (enable|disable) [a-zA-Z0-9._-]+|emergency_unblock (freeze|uninstall|remove_admin|clear_overlay) [a-zA-Z0-9._-]+|emergency_unblock (lockscreen_clear|disable_accessibility)|emergency_unblock disable_accessibility [a-zA-Z0-9._-]+)$/;
 // v3.2.71: kill 动作黑名单 — 系统关键进程即使 pid 对得上也拒绝 (模型可能从 top_processes 里挑 system_server)
 const KILL_GUARD = ['system_server', 'zygote', 'surfaceflinger', 'com.android.systemui',
   'com.android.launcher', 'com.android.phone', 'com.android.settings', 'android',
@@ -820,10 +852,25 @@ function sanitizeAction(a) {
     for (let i = 0; i < KILL_GUARD.length; i++) {
       if (pkg === KILL_GUARD[i] || pkg.indexOf(KILL_GUARD[i]) === 0) return null;
     }
+    // v3.4.22: 媒体播放保护 — 正在播放音频的应用不得 force-stop (后端 optimize.sh 也有兜底)
+    const _mp = (latestData && Array.isArray(latestData.media_playing)) ? latestData.media_playing : [];
+    for (let i = 0; i < _mp.length; i++) {
+      if (pkg === String(_mp[i]).toLowerCase()) return null;
+    }
   }
   // v3.2.71: freeze 同样过 KILL_GUARD — 冻结系统应用会导致开不了机, 必须前端拦
   if (s.lastIndexOf('freeze ', 0) === 0) {
     const pkg = s.slice(7).trim().toLowerCase();
+    for (let i = 0; i < KILL_GUARD.length; i++) {
+      if (pkg === KILL_GUARD[i] || pkg.indexOf(KILL_GUARD[i]) === 0) return null;
+    }
+  }
+  // v3.4.9: whitelist add/remove 同样过 KILL_GUARD —
+  // 系统应用入白名单会让 kill_guard 永久失效, 与 freeze 同级风险, 前端必须拦
+  // v3.4.10: 解析加固 — 按空格分词取第 3 段, 防止 indexOf 偶发定位错误
+  if (s.lastIndexOf('whitelist add ', 0) === 0 || s.lastIndexOf('whitelist remove ', 0) === 0) {
+    const _wparts = s.split(/\s+/);
+    const pkg = (_wparts[2] || '').trim().toLowerCase();
     for (let i = 0; i < KILL_GUARD.length; i++) {
       if (pkg === KILL_GUARD[i] || pkg.indexOf(KILL_GUARD[i]) === 0) return null;
     }
@@ -891,14 +938,62 @@ function sanitizeAiConfig(cfg) {
   out.model = model.slice(0, 64);
   return out;
 }
+// v3.4.23: 动作 cooldown 注册表 — 同一动作 30 分钟内不重复执行
+// 存 /data/adb/atria_action_reg.jsonl (action|status|ts), 只保留最近 200 条
+const ACTION_REG_FILE = '/data/adb/atria_action_reg.jsonl';
+const ACTION_COOLDOWN_MS = 30 * 60 * 1000;
+let _actionReg = null, _actionRegAt = 0;
+async function loadActionReg() {
+  if (_actionReg && Date.now() - _actionRegAt < 20000) return _actionReg;
+  try {
+    const exec = (typeof execFn === 'function') ? execFn : (await awaitExec().catch(() => null));
+    if (!exec) return [];
+    const out = await exec('tail -60 ' + ACTION_REG_FILE + ' 2>/dev/null');
+    const rows = String(out || '').split('\n').filter(l => l.trim()).map(l => {
+      try { return JSON.parse(l); } catch (e) { return null; }
+    }).filter(x => x && x.action);
+    _actionReg = rows; _actionRegAt = Date.now();
+    return rows;
+  } catch (e) { return []; }
+}
+function isActionCoolingDown(act) {
+  if (!_actionReg) return null;
+  const now = Date.now();
+  for (let i = _actionReg.length - 1; i >= 0; i--) {
+    const r = _actionReg[i];
+    if (r.action === act && r.status === 'ok' && (now - (r.ts || 0)) < ACTION_COOLDOWN_MS) return r;
+  }
+  return null;
+}
+function recordAction(act, status) {
+  try {
+    const exec = (typeof execFn === 'function') ? execFn : null;
+    if (!exec) return;
+    const row = JSON.stringify({ ts: Date.now(), time: new Date().toLocaleTimeString(), action: String(act).slice(0, 60), status: String(status).slice(0, 12) });
+    exec("printf '%s\\n' '" + row.replace(/'/g, '') + "' >> " + ACTION_REG_FILE + " 2>/dev/null").catch(() => {});
+    if (_actionReg) _actionReg.push({ ts: Date.now(), time: new Date().toLocaleTimeString(), action: String(act).slice(0, 60), status: String(status).slice(0, 12) });
+  } catch (e) {}
+}
 async function execAction(rawAct) {
   const act = sanitizeAction(rawAct);
   if (!act) return { action: String(rawAct), status: 'reject', msg: '非白名单动作，已拒绝' };
+  // v3.4.23: 动作 cooldown — 30 分钟内同一动作不重复执行 (AI 60s 一跑, 防止连续两轮杀同一进程)
+  const _cd = isActionCoolingDown(act);
+  if (_cd) {
+    const r = { action: act, status: 'skip', msg: '30 分钟内已执行过: ' + _cd.time };
+    appendActionEffect(act, 'cooldown', null, null);
+    return r;
+  }
   try {
     const out = await execWithTimeout("sh " + OPT_PATH + " exec '" + escSh(act) + "'", 30000);
     const data = JSON.parse(out);
-    return (data.results || [])[0] || { action: act, status: 'fail', msg: '执行无返回' };
+    const r = (data.results || [])[0] || { action: act, status: 'fail', msg: '执行无返回' };
+    // v3.4.23: 记录到动作注册表 (成功/跳过/失败都记, cooldown 查询用)
+    if (r.status === 'ok' || r.status === 'skip') recordAction(act, r.status);
+    appendActionEffect(act, r.status, null, null);
+    return r;
   } catch (e) {
+    appendActionEffect(act, 'fail', null, null);
     return { action: act, status: 'fail', msg: String(e.message || e).slice(0, 80) };
   }
 }
@@ -1142,10 +1237,12 @@ function _drawChartImpl() {
     { key: 'mem', color: '#38bdf8', lw: 2.25, dash: [] },
     { key: 'cpu', color: '#f59e0b', lw: 2.25, dash: [] },
     { key: 'temp', color: '#f87171', lw: 1.75, dash: [4, 3],
-      py: v => 6 + (80 - Math.min(80, Math.max(0, v || 0))) * h22 / 80 }
+      py: v => 6 + (80 - Math.min(80, Math.max(0, v || 0))) * h22 / 80 },
+    // v3.4.32: 电池曲线 (0-100 与内存同量程, 绿色虚线区别于实线)
+    { key: 'batt', color: '#4ade80', lw: 1.75, dash: [2, 3] }
   ];
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  for (let s2 = 0; s2 < 3; s2++) {
+  for (let s2 = 0; s2 < series.length; s2++) {
     const ser = series[s2], f = ser.py || py;
     // v3.2.91: 先算 всех 点坐标一次 (面积 + 线 + 端点 复用)
     const pts = [];
@@ -1236,6 +1333,15 @@ function diagnoseLocal(d) {
     const _stall = _psi ? +(_psi.s10 || 0) : 0;
     sug.push('内存占用 ' + pct + '%，压力上升，关注后台进程' + (_stall > 30 ? '（PSI 阻塞 ' + _stall.toFixed(0) + '%，存在真实卡顿）' : ''));
     src.push('内存 ' + pct + '%');
+  }
+  // v3.4.23: IO 压力 — 卡顿的常见元凶, 直接判据是清缓存
+  const _psiIO = (d.kernel || {}).psi_io || null;
+  const _ioStall = _psiIO ? +(_psiIO.s10 || 0) : 0;
+  if (_ioStall > 40) {
+    if (sevScore < 1) sevScore = 1;
+    sug.push('IO 阻塞 ' + _ioStall.toFixed(0) + '%，存储在拖后腿，建议清理大缓存应用');
+    acts.push('clean_cache_all 50');
+    src.push('PSI-IO ' + _ioStall.toFixed(0) + '%');
   }
 
   // ---- 温度 ----
@@ -1384,12 +1490,13 @@ function lvlColor(v, yellowAt, redAt) {
 // v3.2.34: 相同 timestamp 跳过重复分析 (页面切回前台时常遇到一串重复数据)
 // v3.2.71: 温度阈值统一表 — analyze() 与 diagnoseLocal() 共用, 原先两处各写一套
 // 分区阈值: 充电芯片常年比 CPU 热 (快充 50-60°C 是常态), 皮肤温度 >45°C 手感发烫
+// v3.4.32: 阈值回调 — 骁龙 8 Gen 3 轻度负载 48-52°C 完全正常, 原 mid 45 让 cpu 49°C 每小时刷十几条"温度偏高"
 const TEMP_RULES = {
   charger: { mid: 55, high: 65 },
-  skin:    { mid: 40, high: 45 },
-  camera:  { mid: 48, high: 58 },   /* v3.3.4: 摄像头热区, 低于 CPU 但高于皮肤 */
-  chipset: { mid: 50, high: 60 },   /* v3.3.4: 内存/视频解码芯片 */
-  _default:{ mid: 48, high: 55 }
+  skin:    { mid: 43, high: 48 },   /* v3.4.32: 40→43, 手感发烫线 */
+  camera:  { mid: 50, high: 60 },
+  chipset: { mid: 52, high: 62 },   /* v3.4.32: 50→52 */
+  _default:{ mid: 50, high: 58 }    /* v3.4.32: 48/55→50/58 */
 };
 function _tempRule(zone) {
   return TEMP_RULES[zone] || TEMP_RULES._default;
@@ -1405,25 +1512,36 @@ function analyze(d) {
   // v3.2.34: 温度告警 (>55°C 高, >45°C 中)
   // v3.2.28: 排除 batt/battery 类 zone (部分设备实际测充电芯片, 常年 60-95°C 误报)
   const SOC_ONLY = { cpu: 1, gpu: 1, dsp: 1, modem: 1, skin: 1, charger: 1, wifi: 1, other: 1 };
-  // v3.2.71: 同一传感器 30 秒内只报一次 (原每次轮询都追加, 告警列表几条温度刷屏)
-  // v3.2.71: 节流 key 用 zone label 而非完整 title — title 含温度数值,
-  // 温度一变 (56.0→56.5) 就绕过节流, 传感器刷屏
+  // v3.4.32: 温度告警彻底改全局节流 — 原按 zone 分桶 ('th:'+label), 8 个 SoC zone 各享 10 分钟,
+  // 换 zone 报告即绕过 (实测 70 秒内连报 other/cpu/skin/gpu 4 条), 全局只留 1 条最高优先级
   const _now = Date.now();
+  let _thBest = null;   // 本轮最高优先级温度事件 (高>中, 同级取温度最高)
   (d.thermal || []).forEach(z => {
     if (!SOC_ONLY[String(z.label || '')]) return;
     const t = +(z.temp || 0);
     const rule = _tempRule(String(z.label || ''));
-    const _zoneKey = 'th:' + String(z.label || 'zone');
-    const title = '温度 ' + z.label + ' ' + t.toFixed(1) + '°C';
-    if (_now - (lastThermalMap[_zoneKey] || 0) < 30000) return;
-    if (t > rule.high) {
-      lastThermalMap[_zoneKey] = _now;
-      found.push({severity:'高', title, detail: z.label === 'charger' ? '充电芯片过热，可能触发充电降频' : '设备过热，可能触发降频保护', suggestion:'暂停高负载应用，检查散热'});
-    } else if (t > rule.mid) {
-      lastThermalMap[_zoneKey] = _now;
-      found.push({severity:'中', title, detail: z.label === 'charger' ? '充电中发热，快充常态' : '机身温度偏高', suggestion:'留意高负载任务'});
+    let _sev = null;
+    if (t > rule.high) _sev = '高';
+    else if (t > rule.mid) _sev = '中';
+    if (!_sev) return;
+    if (!_thBest || (_sev === '高' && _thBest.sev !== '高') || (_sev === _thBest.sev && t > _thBest.t)) {
+      _thBest = { sev: _sev, t, z, rule };
     }
   });
+  if (_thBest) {
+    const _zoneKey = 'th:global';   // v3.4.32: 全局单桶 — 所有温度事件共享一个冷却窗口
+    const title = '温度 ' + _thBest.z.label + ' ' + _thBest.t.toFixed(1) + '°C';
+    if (_now - (lastThermalMap[_zoneKey] || 0) < 600000) {
+      // v3.4.32: 冷却中不追加新告警, 但刷新已有告警的进度 (在 alerts 渲染层体现数值变化)
+    } else {
+      lastThermalMap[_zoneKey] = _now;
+      found.push({severity: _thBest.sev, title,
+        detail: _thBest.sev === '高'
+          ? (_thBest.z.label === 'charger' ? '充电芯片过热，可能触发充电降频' : '设备过热，可能触发降频保护')
+          : (_thBest.z.label === 'charger' ? '充电中发热，快充常态' : '机身温度偏高'),
+        suggestion: _thBest.sev === '高' ? '暂停高负载应用，检查散热' : '留意高负载任务'});
+    }
+  }
   // v3.2.34: 电池告警
   const b = d.battery || {};
   if (b.capacity != null && +b.capacity < 20 && b.status !== 'Charging' && b.status !== 'Full') {
@@ -1441,6 +1559,29 @@ function analyze(d) {
     found.push({severity:'高', title:('存储占用 ' + st.percent + '%'), detail:('剩余 ' + (+st.free_gb).toFixed(1) + 'GB'), suggestion:'清理缓存或大文件'});
   } else if (st && st.percent != null && +st.percent > 75) {
     found.push({severity:'中', title:('存储占用 ' + st.percent + '%'), detail:('剩余 ' + (+st.free_gb).toFixed(1) + 'GB'), suggestion:'留意存储空间'});
+  }
+  // v3.4.32: 崩溃爆发告警 — 1 小时窗内同进程 >=3 次 (节流: 同进程 10 分钟一条)
+  const _cr2 = d.crashes || {};
+  if (_cr2.burst && _cr2.burst.process) {
+    const _bk = 'crashburst:' + _cr2.burst.process;
+    if (_now - (lastThermalMap[_bk] || 0) >= 600000) {
+      lastThermalMap[_bk] = _now;
+      found.push({severity:'高', title:'崩溃爆发 ' + _cr2.burst.process,
+        detail: '24h 内 ' + _cr2.count_24h + ' 次崩溃, ' + _cr2.burst.process + ' 近期 ' + _cr2.burst.count + ' 次' + (_cr2.burst.window_mins > 0 ? ' (' + _cr2.burst.window_mins + ' 分钟内)' : ''),
+        suggestion: '该进程在反复崩溃; 若是应用建议更新或冻结, 若是自动化工具则与你的软件无关'});
+    }
+  }
+  // v3.4.32: 安全威胁告警 — 锁机木马防护 (设备管理器/辅助服务被第三方占用 = 高危)
+  const _sec = d.security || {};
+  if (_sec.level === 'high' || _sec.level === 'med') {
+    const _sk = 'secthreat:' + (_sec.level || '');
+    if (_now - (lastThermalMap[_sk] || 0) >= 600000) {
+      lastThermalMap[_sk] = _now;
+      const _thr = _sec.level === 'high' ? '存在高危安全威胁' : '存在中危安全威胁';
+      found.push({severity: _sec.level === 'high' ? '高' : '中', title: '安全' + (_sec.level === 'high' ? '高危' : '中危') + ' ' + (_sec.high || 0) + ' 项',
+        detail: _thr + ': ' + (String(_sec.threats || '').split('@').slice(0, 3).join('; ') || '未知'),
+        suggestion: '检查设备管理器/辅助服务/通知监听是否被陌生应用占用; 应急处理可用 emergency_unblock freeze <包名>'});
+    }
   }
   // v3.2.71: 关键词改词边界匹配 — 原子串匹配把 "getLanRtt" 里的 anr 当成 ANR 卡顿
   // v3.2.71: 同类告警按 tag+类型 Dedup — v3.2.71 日志改 *:E 后同 tag 错误日志变多,
@@ -1486,12 +1627,13 @@ function analyze(d) {
   if (alerts.length > 50) alerts = alerts.slice(-50);
 }
 
-const _r = { dev: '', mt: '', mcls: '', mw: '', mb: '', md: '', ct: '', ccls: '', cw: '', cb: '', err: '',
+const _r = { dev: '', mt: '', mcls: '', mw: '', mb: '', md: '', ct: '', ccls: '', cw: '', cb: '', cd: '', err: '',
   tt: '', tcls: '', tw: '', tb: '', td: '',
   bt: '', bcls: '', bw: '', bb: '', bd: '',
   st: '', scls: '', sw: '', sb: '', sd: '',
   nt: '', ncls: '', nw: '', nb: '', nd: '' };
 function render(d) {
+  window.__atriaLastData = d;  // v3.4.19: 详情弹窗复用渲染数据, 无额外采集
   // v3.1.9: 渲染时间戳, 数据过期时给提示 (原实现 timestamp 从不显示)
   const ts = d.timestamp || 0;
   const lag = ts ? Math.max(0, Math.floor(Date.now() / 1000) - ts) : 0;
@@ -1521,6 +1663,11 @@ function render(d) {
   if (cw !== _r.cw) { _r.cw = cw; cpuBar.style.width = cw; }
   const cb = cp > 85 ? '#f87171' : cp > 70 ? '#facc15' : '#4ade80';
   if (cb !== _r.cb) { _r.cb = cb; cpuBar.style.background = cb; }
+  // v3.4.18: CPU 副标题 — 占用最高的进程 (processes 已按 rss 排序, cpu_pct 注入后在 AI 视野)
+  const _procs = Array.isArray(d.processes) ? d.processes : [];
+  const _cpuTop = _procs.filter(p => p && +p.cpu_pct > 0).sort((a, b) => (+b.cpu_pct) - (+a.cpu_pct))[0];
+  const cdTxt = _cpuTop ? String(_cpuTop.name || _cpuTop.pkg || '?').split('.').pop() + ' ' + (+_cpuTop.cpu_pct).toFixed(0) + '%' : '';
+  if (cdTxt !== _r.cd) { _r.cd = cdTxt; cpuD.textContent = cdTxt; }
     // v3.2.34: 温度 (取最高 zone)
   const th = (d.thermal || []);
   let tempMax = 0, tempList = [];
@@ -1604,7 +1751,40 @@ function render(d) {
   const wlw = Math.min(100, wlCnt * 25) + '%';
   if (wlw !== _r.wlw) { _r.wlw = wlw; wlBar.style.width = wlw; wlBar.style.background = (wlCnt > 2 ? '#facc15' : '#4ade80'); }
   const wlDetail = wlParts.slice(0, 2).map(x => x.split(';').filter(Boolean).slice(0, 2).join(' ')).join(' | ') || '息屏空闲';
+  // v3.4.13: 应用耗电排行榜
+  const pw = d.power || null;
+  if (pw && pw.top && pw.top.length) {
+    const _pwTxt = pw.top[0].mah + ' mAh';
+    if (_pwTxt !== _r.pwv) { _r.pwv = _pwTxt; pwEl.textContent = _pwTxt; }
+    const _pwRows = pw.top.slice(0, 4).map((x, i) =>
+      '<div style="display:flex;justify-content:space-between"><span>' + (i + 1) + '. ' + esc(x.pkg) + '</span><span style="color:#38bdf8">' + x.mah + ' mAh</span></div>'
+    ).join('');
+    if (_pwRows !== _r.pwl) { _r.pwl = _pwRows; pwListEl.innerHTML = _pwRows; }
+  } else {
+    if ('--' !== _r.pwv) { _r.pwv = '--'; pwEl.textContent = '--'; }
+    if ('' !== _r.pwl) { _r.pwl = ''; pwListEl.innerHTML = ''; }
+  }
   if (wlDetail !== _r.wld) { _r.wld = wlDetail; wlD.textContent = wlDetail; }
+
+   // v3.4.32: 系统状态卡片 — 息屏/通知/崩溃 三要素聚合
+   // v3.4.32: 崩溃按类显示 (app 才算应用故障, tool/system 单独标出), 爆发时升级文案
+   const _sc = d.screen || {}, _nt = d.notifications || {}, _cr = d.crashes || {};
+   const _scTxt = _sc.state === 'off' ? '息屏' : _sc.state === 'on' ? '亮屏' : '--';
+   const _ntTxt = (_nt.total != null) ? _nt.total + ' 通知' : '';
+   let _crTxt = '';
+   if (_cr.app != null && +_cr.app > 0) _crTxt = _cr.app + ' 崩溃';
+   if (_cr.tool && +_cr.tool > 0) _crTxt = (_crTxt ? _crTxt + ' ' : '') + '+' + _cr.tool + ' 工具';
+   // v3.4.32: 安全威胁注入显示 — level 非 ok 时加 "⚠N 威胁"
+   const _se = d.security || {};
+   let _seTxt = '';
+   if (_se.level && _se.level !== 'ok') _seTxt = '⚠' + ((+_se.high || 0) + (+_se.med || 0)) + ' 威胁';
+   const _sysTxt = [_scTxt, _ntTxt, _crTxt, _seTxt].filter(x => x).join(' · ') || '--';
+   if (_sysTxt !== _r.sysv) { _r.sysv = _sysTxt; if (sysValEl) sysValEl.textContent = _sysTxt; }
+   // 崩溃爆发或应用崩溃>0 时点变红, 息屏时点变暗
+   // v3.4.32: 安全高危 (设备管理器/辅助服务被第三方占用) 也变红
+   const _hasBurst = !!(_cr.burst && _cr.burst.process);
+   const _sysColor = (_hasBurst || +(_cr.app || 0) > 0 || _se.level === 'high') ? '#f87171' : (_se.level === 'med' ? '#fbbf24' : (_sc.state === 'off' ? '#64748b' : '#a78bfa'));
+   if (_sysColor !== _r.sysc) { _r.sysc = _sysColor; if (sysDot) { sysDot.style.color = _sysColor; sysDot.style.background = _sysColor; } }
 
   // v3.2.98 F5: 存储空间分析 - 三路 top5 大户
   const du = d.du || null;
@@ -1635,8 +1815,8 @@ function render(d) {
     }
     lastNet[dev] = { rx, tx, ts: d.timestamp };
   });
-  const totalRate = rxRate + txRate;   /* v3.4.6: 仍用于条形/配色, 表示链路总负载 */
-  /* v3.4.6: 主数值改显主导方向 — 上传>下载显示 ↑, 反之 ↓, 避免把 60KB/s 上传看成"在下载" */
+  const totalRate = rxRate + txRate;   /* v3.4.9: 仍用于条形/配色, 表示链路总负载 */
+  /* v3.4.9: 主数值改显主导方向 — 上传>下载显示 ↑, 反之 ↓, 避免把 60KB/s 上传看成"在下载" */
   const leadRate = Math.max(rxRate, txRate);
   const nTxt = totalRate > 0 ? ((txRate > rxRate ? '↑ ' : '↓ ') + fmtRate(leadRate)) : (nets.length ? '0 B/s' : '--');
   if (nTxt !== _r.nt) { _r.nt = nTxt; netEl.textContent = nTxt; pulse(netEl); setDot(netDot, totalRate > 2097152 ? '#facc15' : '#4ade80'); }
@@ -1649,14 +1829,18 @@ function render(d) {
   const ndTxt = netParts.length ? netParts.join(' · ') : (nets.length ? '无流量' : '无网络');
   if (ndTxt !== _r.nd) { _r.nd = ndTxt; netD.textContent = ndTxt; }
 
-    history.push({mem: mp || 0, cpu: cp || 0, temp: tempMax || 0});
+    history.push({mem: mp || 0, cpu: cp || 0, temp: tempMax || 0, batt: (b && b.capacity != null ? +b.capacity : 0)});
     if (history.length > 120) history = history.slice(-120);
     // v3.2.34: 绘图放到 rAF, 与其他 DOM 写入合并到同一帧 (避免布局抖动)
     if (!chartQueued) { chartQueued = true; requestAnimationFrame(() => { chartQueued = false; drawChart(); }); }
-const procs = d.processes || [];
-    // v3.2.34: pid-only key, rss 微变不触发全量重渲染
+    const procs = d.processes || [];
+    // v3.4.32: 分级重建 — 原key='数量:pid列表', 64 条里进出一个 pid 就全表重建 (60 行 fillRow+appendChild).
+    // 新 key 只在 pid 集合变化时变; 数值变化走 _fillRow 原地更新, 不重建 DOM.
+    // 全量重建兜底: 集合变化超 8 行 (一波后台清理/启动潮) 才整表重建, 小波动走 diff
     const pk = procs.length + ':' + procs.map(x => x.pid).join('|');
     if (pk !== lastProcsKey) {
+      const _prevLen = lastProcsKey ? +(lastProcsKey.split(':')[0] || 0) : 0;
+      const _bigSwap = Math.abs(procs.length - _prevLen) > 8;   // v3.4.32: 大变动才整表重建
       lastProcsKey = pk;
       procCntEl.textContent = procs.length ? procs.length + ' 个' : '';
       const pkSeen = new Set(), pkList = [];
@@ -1687,7 +1871,15 @@ const procs = d.processes || [];
         row.children[0].textContent = x.pid;
         const nameEl = row.children[1];
         nameEl.textContent = x.name;
-        nameEl.className = 'p-name' + (heavy ? ' yellow' : '');
+        // v3.4.22: 正在播放音频的应用标 🎧 (latestData.media_playing 由 collect_loop 注入)
+        const _isMP = (() => {
+          const _arr = (latestData && Array.isArray(latestData.media_playing)) ? latestData.media_playing : [];
+          const _pn = String(x.name || '').split(':')[0];
+          for (let i = 0; i < _arr.length; i++) if (_arr[i] === _pn) return true;
+          return false;
+        })();
+        if (_isMP) nameEl.textContent = '🎧 ' + x.name;
+        nameEl.className = 'p-name' + (heavy ? ' yellow' : '') + (_isMP ? ' green' : '');
         const statEl = row.children[2];
         statEl.textContent = st;
         statEl.className = 'p-stat stat-' + st;
@@ -1713,6 +1905,57 @@ const procs = d.processes || [];
       if (!procs.length) {
         procEl.innerHTML = '<div class="empty">无进程</div>';
         procEl._rowByPid = {};
+      } else if (!_bigSwap && procEl.children.length) {
+        // v3.4.32: 增量路径 — pid 集合小波动 (进出 ≤8 行): 复用现有 DOM 行,
+        // 只 _fillRow 原地改文本 + 手术式增删, 跳过 textContent='' + 60 次 appendChild 的全量重建
+        const _alive = {};
+        procs.forEach(function (x) {
+          const pidS = String(x.pid);
+          _alive[pidS] = 1;
+          let row = _rowByPid[pidS];
+          if (!row) {
+            row = _mkRow(x);
+            _rowByPid[pidS] = row;
+          }
+          _fillRow(row, x);
+        });
+        // 移除消失进程的行 (DOM 与索引同步, 无残留)
+        const _stale = [];
+        Array.prototype.forEach.call(Array.prototype.slice.call(procEl.children), function (c) {
+          const pidS = (c.dataset && c.dataset.pid) ? c.dataset.pid : null;
+          if (pidS && !_alive[pidS]) _stale.push(c);
+        });
+        _stale.forEach(function (c) {
+          const pidS = c.dataset.pid;
+          procEl.removeChild(c);
+          delete _rowByPid[pidS];
+        });
+        // 新进程的行挂到 DOM (尚未 attach 的 _mkRow 产物)
+        const _newRows = [];
+        procs.forEach(function (x) {
+          const r = _rowByPid[String(x.pid)];
+          if (r && !r.parentNode) _newRows.push(r);
+        });
+        if (_newRows.length) {
+          const frag2 = document.createDocumentFragment();
+          _newRows.forEach(function (r) { frag2.appendChild(r); });
+          procEl.appendChild(frag2);
+        }
+        // 顺序修正: pid 顺序与 DOM 不一致时才重排 (rss 排序变化导致换位), 一致则完全跳过
+        let _orderOk = true;
+        const _kids = procEl.children;
+        let _i = 0, _n = _kids.length;
+        for (let k = 0; k < procs.length; k++) {
+          while (_i < _n && !(_kids[_i].dataset && _kids[_i].dataset.pid)) _i++;
+          if (_i >= _n) { _orderOk = false; break; }
+          if (_kids[_i].dataset.pid !== String(procs[k].pid)) { _orderOk = false; break; }
+          _i++;
+        }
+        if (!_orderOk) {
+          const frag3 = document.createDocumentFragment();
+          procs.forEach(function (x) { const r = _rowByPid[String(x.pid)]; if (r) frag3.appendChild(r); });
+          procEl.appendChild(frag3);
+        }
       } else {
         // keep the empty-state out of the way
         if (procEl.firstChild && procEl.firstChild.className === 'empty') procEl.innerHTML = '';
@@ -1826,6 +2069,19 @@ async function fetchStatus() {
   return t;
 }
 
+// v3.4.16: exec 通道读 status.json — exec 桥接只回第一行, 多行 JSON 被截断 (v3.2.45 白名单同款坑);
+// 改用 base64 -w0 单行输出 + 前端解码, 完整取回含 power/wakelock 的整串 JSON
+// (collect.sh 直跑输出无 power 字段, 且经 exec 同样被截断, 不能作为回退数据源)
+// atob 对 UTF-8 中文会乱码, 用 decodeURIComponent(escape()) 解 (v3.2.45 白名单同款方案)
+async function fetchStatusViaExec() {
+  const exec = await awaitExec();
+  const b64 = await exec('base64 -w0 /data/local/tmp/atria_status.json');
+  if (!b64 || !b64.trim()) throw new Error('status base64 empty');
+  const txt = decodeURIComponent(escape(atob(b64.trim())));
+  if (!txt || !txt.trim()) throw new Error('status decode empty');
+  return txt;
+}
+
 // v3.2.34: 等待 execFn 就绪 (loadApi 是异步的, 启动竞争时 execFn 为 null -> 抛 TypeError 被误报为"采集失败")
 // v3.2.28: 等待循环缩短到 1 秒 (原 4 秒空转占主线程, 页面卡顿明显)
 // v3.2.71: 首屏场景 exec 通道 ~1.1s 才就绪 (loadApi 需先建立 ksu 全局对象),
@@ -1855,17 +2111,21 @@ async function poll() {
   try {
     let out;
     try { out = await fetchStatus(); }
-    catch (e1) { const exec = await awaitExec(); out = await exec(COLLECT_CMD); }
+    // v3.4.16: fetch 失败回退改用 base64 单行读取 (exec 直跑 collect.sh 输出被截断且无 power 字段)
+    catch (e1) { out = await fetchStatusViaExec(); }
     const data = JSON.parse(out);
     // v3.2.34: timestamp 未变化时跳过 analyze+render (页面切回前台时常遇到一串重复数据)
     if (latestData && data.timestamp === latestData.timestamp) return;
     // v3.2.28: 内容指纹去重 — timestamp 变了但数值完全相同 (后台采集频率高于面板) 也跳过, 避免无谓渲染
     const fp = (data.mem && data.mem.percent) + '|' + (data.cpu && data.cpu.percent) + '|' + (data.thermal || []).map(z => z.temp).join(',') + '|' + (data.battery && data.battery.capacity);
-    if (fp === lastContentFp) { latestData = data; return; }
+    if (fp === lastContentFp) { latestData = data; window.__atriaLastData = data; return; }
     // v3.2.99 F3: 告警历史徽标 (30s 刷一次, 内存命中 15s 内不重复读)
     if (!alertHistBadge._t || Date.now() - alertHistBadge._t > 30000) {
       alertHistBadge._t = Date.now();
       loadAlertHist().then(rows => {
+        // v3.4.23: 顺带刷新动作注册表与效果记录 (cooldown 判定与 AI payload 用)
+        loadActionReg().catch(() => {});
+        loadActionEffects().catch(() => {});
         if (rows && rows.length) alertHistBadge.textContent = '（历史 ' + rows.length + ' 条）';
       }).catch(() => {});
     }
@@ -1922,9 +2182,12 @@ let _diagHistCache = null, _diagHistAt = 0;
 async function loadDiagHist() {
   if (_diagHistCache && Date.now() - _diagHistAt < 30000) return _diagHistCache;
   try {
+    // v3.4.32: exec 全部走 execWithTimeout — 原 await exec() 无超时,
+    // exec 桥接挂起时 (ksu.exec 死锁/通道拥塞) Promise 永不 settle,
+    // runAi 等待计时器就会无限叠加到几百秒
     const exec = execFn || (await awaitExec().catch(() => null));
     if (!exec) return [];
-    const out = await exec('tail -20 ' + DIAG_HIST_FILE + ' 2>/dev/null');
+    const out = await execWithTimeout('tail -20 ' + DIAG_HIST_FILE + ' 2>/dev/null', 8000);
     const rows = String(out || '').split('\n').filter(l => l.trim()).map(l => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(x => x && x.summary);
     _diagHistCache = rows; _diagHistAt = Date.now();
     return rows;
@@ -1935,8 +2198,15 @@ async function appendDiagHist(res, actionsTaken) {
     const exec = execFn || (await awaitExec().catch(() => null));
     if (!exec) return;
     const row = JSON.stringify({ ts: Date.now(), time: new Date().toLocaleTimeString(), risk: res.risk_level || '低', summary: String(res.summary || '').slice(0, 120), actions: (actionsTaken || []).slice(0, 5), mem: latestData && latestData.mem ? latestData.mem.percent : null, temp: latestData && latestData.thermal && latestData.thermal.length ? latestData.thermal[0].temp : null });
-    await exec("printf '%s\\n' '" + row.replace(/'/g, '') + "' >> " + DIAG_HIST_FILE + " 2>/dev/null");
+    // v3.4.32: 同 loadDiagHist — exec 加超时, 防止桥接挂起致等待无限叠加
+    await execWithTimeout("printf '%s\\n' '" + row.replace(/'/g, '') + "' >> " + DIAG_HIST_FILE + " 2>/dev/null", 8000);
     _diagHistCache = null;
+    // v3.4.24: 文件无限增长防护 — >250 行时截断保留最近 200 行 (每次追加后检查, 低频动作)
+    try {
+      await execWithTimeout("LINE=$(wc -l < " + DIAG_HIST_FILE + " 2>/dev/null); " +
+        "case \"$LINE\" in ''|*[!0-9]*) LINE=0;; esac; " +
+        "if [ \"$LINE\" -gt 250 ]; then tail -n 200 " + DIAG_HIST_FILE + " > " + DIAG_HIST_FILE + ".tmp 2>/dev/null && mv " + DIAG_HIST_FILE + ".tmp " + DIAG_HIST_FILE + " 2>/dev/null; fi");
+    } catch (_) {}
   } catch (e) {}
 }
 // v3.2.99 F3: 告警历史 ring buffer - alerts 数组只留当前帧且刷新即丢,
@@ -2053,7 +2323,28 @@ function buildAiPayload(d) {
         .map(e => e[0] + '(' + (e[1] / 1048576).toFixed(1) + 'GB)').join(', ')
     ).join(' | ') : '',
     // v3.2.99 F3: 近 10 条告警历史 - 让 AI 看到告警频率/模式, 不只当前帧
-    alert_history: (_alertHistCache || []).slice(-10).map(a => '[' + a.severity + ']' + a.title).join(' | ') };
+    alert_history: (_alertHistCache || []).slice(-10).map(a => '[' + a.severity + ']' + a.title).join(' | '),
+    // v3.4.22: 正在播放音频的应用 — AI 建议 kill 时必须避开 (用户明确要求)
+    media_playing: Array.isArray(d.media_playing) ? d.media_playing : [],
+    // v3.4.23: 上次动作的实际效果 — 让 AI 判断"该动作有没有用", 无效动作不重复建议
+    // status: ok/skip/fail/cooldown/measured; measured 带 dMem/dTemp (动作后 60s 实测变化)
+    action_effects: (_effectCache || []).slice(-10).map(r =>
+      r.action + ' [' + r.status + ']' +
+      ((typeof r.dMem === 'number') ? ' mem' + (r.dMem > 0 ? '+' : '') + r.dMem + '%' : '') +
+      ((typeof r.dTemp === 'number') ? ' temp' + (r.dTemp > 0 ? '+' : '') + r.dTemp + '°C' : '')
+    ).join(' | '),
+    // v3.4.23: 30 分钟内已执行过的动作 — AI 不得重复建议 (需换策略或升档)
+    recent_actions: (_actionReg || []).filter(r => (Date.now() - (r.ts || 0)) < ACTION_COOLDOWN_MS && r.status === 'ok')
+      .map(r => r.action).join(' | '),
+    // v3.4.25: 电池健康 (soh/循环/功率) + 每应用流量排行
+    batt_ext: d.batt_ext || null,
+    net_stats: d.net_stats || null,
+// v3.4.32: 屏幕状态 / 通知 / 崩溃记录
+     screen: d.screen || null,
+     notifications: d.notifications || null,
+     crashes: d.crashes || null,
+     // v3.4.32: 安全威胁检测 (设备管理器/辅助服务/通知监听/锁屏凭据/新增包)
+     security: d.security || null };
 }
 async function callAiRaw(msgs, maxTok) {
   if (!aiConfig || !aiConfig.api_key) throw new Error('未配置 API key');
@@ -2074,6 +2365,13 @@ async function callAiRaw(msgs, maxTok) {
   // 探针铁证: ksu.exec 跑 curl 时 JS 线程被冻 10-35s (定时器不触发),
   // 而原生 fetch 同一接口仅 929ms 且网络期间 JS 线程完全自由
   const _t0 = Date.now();
+  // v3.4.32: 超时按模型自适应 — v3.4.9 一刀切 12s 是 bug:
+  // 实测 Atria-Dawn-Preview 完整诊断请求 10.9-14.3s (推理模型思考链 300-1160 字符),
+  // 12s 恰好把正常请求杀掉 → 回退 curl -m 8 更短 → 又超时 → 熔断 5 分钟 → 永远降级本地诊断.
+  // 推理模型 (含 reasoning/dawn/deepseek-r 系) 给 60s, 普通对话模型给 25s
+  const _model = String(aiConfig.model || 'deepseek-chat').toLowerCase();
+  const _isReasoning = /dawn|reason|r1|o1|o3|deepseek-r|qwq|think/.test(_model);
+  const _fetchTimeout = _isReasoning ? 60000 : 25000;
   let out;
   try {
     const resp = await fetchWithTimeout(url, {
@@ -2083,19 +2381,42 @@ async function callAiRaw(msgs, maxTok) {
         'Content-Type': 'application/json'
       },
       body: body
-    }, 45000);
+    // v3.4.32: 12s → 自适应 (推理 60s / 普通 25s) — 正常请求 1.9-14s, 卡住时不再傻等 45s
+    }, _fetchTimeout);
     out = await resp.text();
   } catch (e) {
     const msg = String(e.message || e);
     // v3.2.79: fetch 失败时回退 curl (WebView 不允许外网 fetch 的设备上保持可用)
     try { dlog('ai_timing', 'fetch 失败回退 curl: ' + msg.slice(0, 60)); } catch (_) {}
+    // v3.4.12: ksu.exec 同步阻塞 JS 线程 (探针实测冻结 10-35s, atrie_exec_trace 9493 条记录),
+    // 回退路径不能再干等 15s 把面板冻死。三重防护:
+    //  ① 熔断: 兼容通道上次超时/空输出 → 5 分钟内不再试, 直接给出可读错误 (fetch 每次仍先试)
+    //  ② curl -m 15 → 8, execWithTimeout 15s → 9s, 最坏冻结 ~9s 而非 15s+
+    //  ③ 成功拿到输出立即解除熔断, 只有超时/空输出才熔断 (配置错误类不算通道坏)
+    const _nowMs = Date.now();
+    if (window._aiCompatBadAt && (_nowMs - window._aiCompatBadAt) < 300000) {
+      throw new Error('AI 网络通道不可用: WebView fetch 被禁, 兼容通道最近失败, 5 分钟后自动重试或检查网络');
+    }
+    // v3.4.32: curl -m 8 → 30 (推理) / 12 (普通) — 原本 8s 连正常推理请求都接不住
     // v3.4.0: url 与 api_key 都经 escSh — 历史遗留注入点 (同 fetchModelList 根因)
     // v3.4.1: url 从裸拼改为单引号包裹 — 模拟手改配置绕过 URL_OK 后, ;/$()/` 仍会注入 (escSh 只转义单引号)
-    const cmd = "curl -s -m 25 -X POST '" + escSh(url) + "'" +
+    const _curlM = _isReasoning ? 30 : 12;
+    const cmd = "curl -s -m " + _curlM + " -X POST '" + escSh(url) + "'" +
       " -H 'Authorization: Bearer " + escSh(aiConfig.api_key) + "'" +
       " -H 'Content-Type: application/json'" +
       " -d '" + escSh(body) + "'";
-    out = await execWithTimeout(cmd, 30000);
+    try {
+      out = await execWithTimeout(cmd, _isReasoning ? 33000 : 14000);
+    } catch (e2) {
+      window._aiCompatBadAt = _nowMs;   // 超时类失败 → 熔断
+      throw new Error('AI 请求失败(兼容通道超时): ' + String(e2.message || e2).slice(0, 80));
+    }
+    if (!out || !String(out).trim()) {
+      window._aiCompatBadAt = _nowMs;   // 空输出 → 熔断
+      throw new Error('AI 兼容通道无输出, 可能网络不可达');
+    }
+    // v3.4.12: 兑现注释第③条 — 成功拿到输出立即解除熔断, 不用干等 5 分钟窗口
+    window._aiCompatBadAt = 0;
   }
   const _t1 = Date.now();
   try { dlog('ai_timing', 'fetch 往返=' + (_t1 - _t0) + 'ms 输出' + (out ? out.length : 0) + 'B'); } catch (_) {}
@@ -2137,12 +2458,38 @@ const AI_PROMPT = '你是安卓系统优化专家。分析设备状态、温度�
     // v3.2.97: kernel 字段说明
     'kernel 为内核压力数据（部分设备可能缺失）：psi.s10/s300 为内存阻塞率百分比（10秒/300秒均值），' +
     's10 > 30 表示存在真实内存停滞（该清内存了），< 5 则内存充足、不需要 drop_caches；' +
+    // v3.4.23: IO/CPU 压力说明
+    'kernel.psi_io.s10/s300 为 IO 阻塞率（> 40 = 存储在拖后腿，卡顿元凶，清缓存/drop_caches 有效）；kernel.psi_cpu.s10 为 CPU 压力（> 50 = 任务在等 CPU）；' +
+    'kernel.loadavg.m1/m5/m15 为系统负载均值，与 CPU 核心数对比（m1 > 核心数 = 过载）；' +
     'kernel.swap.pct 为 zram/swap 使用率，> 70 表示物理内存确实紧张；' +
+    // v3.4.13: 应用耗电排行
+    'power 为应用耗电排行榜（部分设备可能缺失）：power.top 为耗电 top 应用数组（pkg 包名 + mah 耗电量毫安时），' +
+    'power.screen_on 为屏幕耗电 mAh，power.total 为总耗电 mAh；mah 越大越耗电，耗电类问题必看此字段。' +
     'kernel.gov 为当前 CPU 调度器|当前频率|最大频率（频率单位 kHz），切换调度器前请说明当前值；' +
-    'kernel.oom 为内核 OOM killer 记录（出现说明发生过内存耗尽）；kernel.anr_age_s 为最近一次 ANR 距今秒数。' + + 'v3.2.98 新增字段: wakelock 为息屏掉电根因(空=健康, com.xxx 持锁=后台耗电元凶可强停); cpu_top 为 CPU Top 进程(processes 按内存排序, 高CPU低内存元凶如 surfaceflinger 只在 cpu_top 里); storage_hogs 为存储占用大户(GB), 清理建议必须引用具体应用名。'
+    'kernel.oom 为内核 OOM killer 记录（出现说明发生过内存耗尽）；kernel.anr_age_s 为最近一次 ANR 距今秒数。' + + 'v3.2.98 新增字段: wakelock 为息屏掉电根因(空=健康, com.xxx 持锁=后台耗电元凶可强停); cpu_top 为 CPU Top 进程(processes 按内存排序, 高CPU低内存元凶如 surfaceflinger 只在 cpu_top 里); storage_hogs 为存储占用大户(GB), 清理建议必须引用具体应用名。' +
+    // v3.4.22: 媒体播放保护 — AI 不得建议杀正在播放音频的应用
+    'media_playing 为正在播放音频/音乐的应用包名数组（空数组=无播放）；【硬性禁令】kill 与 am force-stop 动作绝不允许针对 media_playing 里的应用，建议里也不得出现它们；用户正在听音乐/看视频，杀掉会中断播放。' +
+    // v3.4.23: 动作效果回流 + cooldown — AI 根据上次动作的实际结果调整策略
+    'action_effects 为最近执行动作的实测效果（动作名 [状态] 内存变化% 温度变化°C，measured=执行后 60s 实测）：dMem 为负=有效释放了内存，接近 0 或为正=该动作无效。' +
+    '【策略规则】动作无效时不得重复建议同一动作；某类动作连续无效时换策略（kill 无效则试 freeze 或 autostart block，清缓存无效则试 drop_caches）。' +
+    'recent_actions 为 30 分钟内已成功执行过的动作；【硬性禁令】不得重复建议 recent_actions 里出现的动作，需换其他方案或升档处理。' +
+    // v3.4.25: 电池增强 + 流量排行
+    'batt_ext 为电池健康数据：soh 为健康度百分比（< 80 为明显衰减，< 70 建议换电池），cycle_count 为充电循环次数，health 为 BMS 固件健康判断（Good/Fair/Poor），power_w 为实时功率（正=充电中，负=放电中），model 为电池型号；电池类问题必看此字段。' +
+    'net_stats 为每应用累计流量排行（MB，包名→用量）：流量异常/后台偷流量类问题必看，引用具体应用名。' +
+    // v3.4.32: 屏幕状态 / 通知 / 崩溃
+    'screen 为屏幕状态：state 为 on(亮屏)/off(息屏)，off_secs 为本次息屏持续秒数（息屏掉电、wakelock 类问题必看：息屏时耗电应极低，息屏中掉电快说明后台异常）。' +
+    'notifications 为活动通知：total 为总数，apps 为包名→通知数；通知多的应用若非正在播放媒体，属于常驻打扰型耗电。' +
+    'crashes 为近 24h 应用崩溃记录：count_24h 为 TOMBSTONE/ANR/原生崩溃总次数，recent 为崩溃进程名列表（| 分隔）；崩溃类问题必看，logcat 抓不住的持久存证。' +
+    // v3.4.32: 分类 + 爆发
+    'crashes 进一步分为 app（应用自身崩溃，真实的故障）/ system（dex2oat 等系统编译进程，常由安装更新触发，不算故障）/ tool（uiautomator 等 UI 自动化工具自身崩溃，与被测应用无关）；判断崩溃严重度一律以 app 为准，tool/system 高不代表设备不稳。' +
+    'crashes.burst 非空时表示存在崩溃爆发（同一进程在短时间窗内崩溃 >=3 次，count 为次数、window_mins 为时间窗分钟数），这是严重稳定性问题的信号，必须在 summary 中明确指出并建议更新或冻结该应用。' +
+    // v3.4.32: 安全防护
+    'security 为系统安全威胁检测结果：level 为 ok(安全)/med(中危)/high(高危)，high/med/info 为三项计数，threats 为威胁明细列表（@ 分隔，每条形如"high;device_admin: 包名/组件"）。' +
+    '设备管理器(device_admin)与辅助服务(accessibility)被非系统应用占用是锁机木马的典型特征，属于最高优先级的安全事件，必须在 summary 首位指出并建议执行 emergency_unblock 动作。' +
+    '应急动作白名单新增：emergency_unblock freeze <包名>(禁用恶意应用，优先)、emergency_unblock uninstall <包名>(卸载)、emergency_unblock remove_admin <包名/组件>(撤销设备管理器，锁机恢复关键)、emergency_unblock clear_overlay <包名>(关悬浮窗)、emergency_unblock disable_accessibility [包名](无障碍锁机恢复：清空辅助服务列表，无参数时清空全部，有参数时只移除指定包)、emergency_unblock lockscreen_clear(清锁屏凭据，重启生效)。'
     'trend 为最近若干次采样的趋势序列（mem% cpu% temp°C，箭头分隔，时间从左到右），用于区分"持续高位"与"刚飙升"，提及趋势变化时请引用具体数值。' +
     'recent_logs 为错误级别日志（优先采集 *:E），出现 OOM/ANR/FATAL 时请引用具体 tag 与次数。' +
-    'actions 为可执行优化动作白名单，仅允许以下 12 类（不符合格式的动作会被前端拒绝）:' +
+    'actions 为可执行优化动作白名单，仅允许以下 13 类（不符合格式的动作会被前端拒绝）:' +
     '1. kill <pid> — 结束指定进程（pid 必须来自 top_processes，禁止编造；系统关键进程会被保护名单拦截）;' +    '2. am force-stop <包名> — 强制停止应用（比 kill 彻底，进程会被完整停止）;' +
     '3. drop_caches — 释放内核页缓存（内存紧张时用，立即生效）;' +
     '4. vm compact — 整理内存碎片（与 drop_caches 互补：drop 释放缓存，compact 整理碎片；内存占用高但 drop_caches 收益不明显时用这个）;' +
@@ -2153,8 +2500,12 @@ const AI_PROMPT = '你是安卓系统优化专家。分析设备状态、温度�
     '9. perf performance|powersave|schedutil|interactive — 切换 CPU 调度器（performance 满血费电 / schedutil 均衡 / powersave 省电）;' +
     '10. gpu cap <0-9> — 锁定 GPU 频率上限（Adreno 设备，0=最高档903MHz 解除限频，1-9 逐档降低，游戏发热时锁 5-7 档可压制热源）; gpu restore — 解除 GPU 限频;' +
     '11. freeze <包名> — 冻结应用（彻底不运行不自启，适合长期占资源的少用应用）; unfreeze <包名> — 解除冻结;' +
-    '12. module enable|disable <模块id> — 启用或禁用内核模块（谨慎使用，仅当某模块确实造成问题时）.' +
+    '12. module enable|disable <模块id> — 启用或禁用内核模块（谨慎使用，仅当某模块确实造成问题时）;' +
+    // v3.4.9: AI 可执行设定类动作 — 白名单管理
+    '13. whitelist add <包名> — 加入本模块防杀白名单（之后该包不会被本模块的 kill/force-stop 误杀；注意: 这不是系统 Doze 白名单; 动作会在返回后立即自动执行, summary 用"将加入/将移出"不要用"已加入/已移出"）; whitelist remove <包名> — 移出白名单.' +
     '动作选择原则：优先治本（freeze / autostart block / clean_cache）而非治标（kill）；内存问题先 drop_caches 或 vm compact；发热问题首推 gpu cap 锁中低档或 perf schedutil；不确定时 actions 返回空数组只给建议。' +
+    '用户意图识别（必须落到 actions, 不要只给文字建议）: “把X加白名单/别杀X/保护X” → whitelist add X; “X自启被关/允许X后台/X开不了自启” → autostart unblock X; “X耗电/偷跑后台” → autostart block X 或 freeze X; “清X缓存/X占空间” → clean_cache X.' +
+    'suggestions 只写面板可执行或用户立即可做的动作, 禁止“前往设置-电池-自启动手动开启”这类绕过面板的步骤; 厂商私有自启动管理(ColorOS/MIUI)最多在 summary 一句话带过, 不作为主要建议.' +
     '如不需执行任何动作，actions 返回空数组 []；suggestions 最多 5 条。' +
     'last_diag 为上次诊断的摘要记录。如果存在，请对比当前状态与上次诊断结果指出变化，例如上次建议冻结 X 后内存已从 78% 降到 72%；如无变化不要重复给出相同建议。' +
     '绝对不要结束承载本面板的 WebUI 宿主应用 io.github.a13e300.ksuwebui（KsuWebUI 管理器进程），即使其内存占用偏高——杀掉它会导致面板立即闪退。';
@@ -2168,7 +2519,7 @@ const FOLLOWUP_EXTRA =
   // v3.2.82: 追问回答也要简短 — 两三句以内, 每条建议 ≤30 字
   '1. summary 字段承载对用户问题的回答, 允许解释原因或对比数据, 但必须简短: 两三句以内、总共 ≤120 字, 抓重点说;' +
   '2. risk_level 填写当前评估的风险等级(低/中/高), 不确定时沿用上一轮;' +
-  '3. 如果追问产生了新的可执行动作, 放进 actions 数组(格式同白名单); 没有新动作则返回空数组 [];' +
+  '3. 用户在追问中提出的操作请求必须落到 actions: “帮我把X加入白名单” → ["whitelist add X"]; “把X移出白名单” → ["whitelist remove X"]; “允许X自启” → ["autostart unblock X"]; 没有新动作才返回空数组 []; 注意 whitelist add/remove 均会立即自动执行, summary 说"将加入/将移出"而非"已加入/已移出";' +
   '4. suggestions 给出与问题相关的后续建议, 没有则返回空数组;' +
   '5. 用户问题在消息中以【追问】开头, 请围绕它回答, 不要只重复上一轮结论;' +
   '6. 如用户问"上次的建议有效吗", 请对比消息中的【当前设备实时数据】与上一轮数据再回答;' +
@@ -2244,15 +2595,25 @@ function renderActions(el, actions) {
     btn.style.cssText = 'background:' + (safe ? '#16a34a' : '#475569') + ';color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:13px;cursor:' + (safe ? 'pointer' : 'not-allowed');
     const rst = document.createElement('span');
     rst.style.cssText = 'font-size:12px;color:#94a3b8';
-    btn.addEventListener('click', async () => {
+    // v3.4.10: whitelist add 低风险(只追加一行包名, 后端有 PKG_PROTECTED 拦系统应用),
+    // v3.4.11: remove 同样自动执行 (风险更低, 可逆) — 用户说"帮我加/帮我移"就真执行
+    // v3.4.11: whitelist remove 也自动执行 — remove 风险比 add 低 (失去保护被杀一次, 可逆),
+    // 用户说"移出"意图明确, 与 add 对称自动执行, 不再停在待执行按钮上被误以为已完成
+    const _wlAuto = act && (act.lastIndexOf('whitelist add ', 0) === 0 || act.lastIndexOf('whitelist remove ', 0) === 0);
+    const _execAndShow = async () => {
       btn.disabled = true; rst.textContent = ' 执行中...';
       const _snap2 = snapshotMetrics();
       const r = await execAction(act);
       scheduleVerify(_snap2, act);
+      // v3.4.10: 执行成功后, 若设置弹窗正打开则自动重载白名单 textarea
+      if (r && r.status === 'ok' && String(act).indexOf('whitelist ') === 0) {
+        try { await loadWhitelist(); } catch (_) {}
+      }
       const color = r.status === 'ok' ? '#4ade80' : r.status === 'skip' ? '#facc15' : '#f87171';
       rst.innerHTML = ' <span style="color:' + color + '">' + (r.status === 'ok' ? '✅' : r.status === 'skip' ? '⏭️' : '❌') + ' ' + esc(r.msg || r.status) + '</span>';
       btn.textContent = '已执行';
-    });
+    };
+    if (_wlAuto) { _execAndShow(); } else { btn.addEventListener('click', _execAndShow); }
     row.style.cssText = 'display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap';
     const lbl = document.createElement('span');
     lbl.style.cssText = 'font-size:12px;color:#38bdf8;font-family:monospace';
@@ -2319,6 +2680,36 @@ function snapshotMetrics() {
   if (!d) return null;
   return { mem: d.mem ? d.mem.percent : null, temp: (d.thermal || []).map(z => z.temp), swap: d.swap || null, ts: Date.now() };
 }
+// v3.4.23: 动作效果落盘 — 喂给下一次 AI 诊断, 让 AI 知道"上次动作有没有用"
+const ACTION_EFFECT_FILE = '/data/adb/atria_action_effects.jsonl';
+let _effectCache = null, _effectCacheAt = 0;
+async function loadActionEffects() {
+  if (_effectCache && Date.now() - _effectCacheAt < 30000) return _effectCache;
+  try {
+    const exec = (typeof execFn === 'function') ? execFn : (await awaitExec().catch(() => null));
+    if (!exec) return [];
+    const out = await exec('tail -12 ' + ACTION_EFFECT_FILE + ' 2>/dev/null');
+    const rows = String(out || '').split('\n').filter(l => l.trim()).map(l => {
+      try { return JSON.parse(l); } catch (e) { return null; }
+    }).filter(x => x && x.action);
+    _effectCache = rows; _effectCacheAt = Date.now();
+    return rows;
+  } catch (e) { return []; }
+}
+function appendActionEffect(action, status, dMem, dTemp) {
+  try {
+    const exec = (typeof execFn === 'function') ? execFn : null;
+    if (!exec) return;
+    const row = JSON.stringify({
+      ts: Date.now(), time: new Date().toLocaleTimeString(),
+      action: String(action).slice(0, 60), status: String(status).slice(0, 12),
+      dMem: (typeof dMem === 'number') ? dMem : null,
+      dTemp: (typeof dTemp === 'number') ? dTemp : null
+    });
+    exec("printf '%s\\n' '" + row.replace(/'/g, '') + "' >> " + ACTION_EFFECT_FILE + " 2>/dev/null").catch(() => {});
+    _effectCache = null;   // 强制下次重读
+  } catch (e) {}
+}
 function verifyEffect(beforeSnap, label) {
   try {
     const a = beforeSnap, b = snapshotMetrics();
@@ -2327,6 +2718,8 @@ function verifyEffect(beforeSnap, label) {
     const aT = a.temp && a.temp.length ? a.temp.reduce((x, y) => x + y, 0) / a.temp.length : null;
     const bT = b.temp && b.temp.length ? b.temp.reduce((x, y) => x + y, 0) / b.temp.length : null;
     const dTemp = (aT != null && bT != null) ? +(bT - aT).toFixed(1) : null;
+    // v3.4.23: 无论有无变化都落盘 — "无变化"本身就是信息 (动作无效)
+    appendActionEffect(label, 'measured', dMem, dTemp);
     const parts = [];
     if (dMem !== 0) parts.push('内存 ' + a.mem + '% → ' + b.mem + '%' + (dMem < 0 ? ' (释放 ' + Math.abs(dMem) + '%)' : ' (上升 ' + dMem + '%)'));
     if (dTemp !== null && Math.abs(dTemp) >= 0.3) parts.push('均值温度 ' + aT.toFixed(1) + '°C → ' + bT.toFixed(1) + '°C');
@@ -2451,14 +2844,29 @@ async function askFollowup(question) {
       const _fe = el.querySelector('.empty');
       if (_fe) _fe.textContent = 'AI 思考中' + '.'.repeat((_fwDot % 4) + 1) + ' （已等 ' + (_fwDot * 2) + 's）';
     }, 2000);
+    // v3.4.32: 硬停兜底 — callAiRaw 挂起时 finally 永远到不了, _fwTimer 无限叠加.
+    // 90s 强制停表并把"思考中"换成可读提示 (callAiRaw 成功返回后 timer 已清, 不会误改)
+    const _fwHard = setTimeout(() => {
+      clearInterval(_fwTimer);
+      try {
+        const _fe = el.querySelector('.empty');
+        if (_fe && _fe.textContent.indexOf('AI 思考中') >= 0) {
+          _fe.textContent = 'AI 响应超时（90s），请稍后重试';
+        }
+      } catch (_) {}
+    }, 90000);
+    // v3.4.32: 追问路径同样上总超时 — callAiRaw 挂起时 _fwTimer+锁 与 runAi 同款症状
+    const _fwTo = new Promise((_, _r) => setTimeout(() => _r(new Error('AI 追问总超时(90s)')), 90000));
     let out;
-    try { out = await callAiRaw(_sendMsgs, 2000); }
-    finally { clearInterval(_fwTimer); }
+    try { out = await Promise.race([callAiRaw(_sendMsgs, 2000), _fwTo]); }
+    finally { clearInterval(_fwTimer); clearTimeout(_fwHard); }
     _aiMessages.push({ role: 'assistant', content: JSON.stringify(out) });
     if (out && out.summary) {
       el.innerHTML += '<div class="a-sug" style="color:#4ade80">· ' + esc(String(out.summary).slice(0, 150)) + '</div>';
       if (out.suggestions && out.suggestions.length) el.innerHTML += '<div style="margin-top:6px">' + out.suggestions.map(x2 => '<div class="a-sug">• ' + esc(x2) + '</div>').join('') + '</div>';
       if (out.actions && out.actions.length) renderActions(document.getElementById('aiActions'), out.actions);
+      // v3.4.10: 追问里的 whitelist add 自动执行 (renderActions 内部会自动跑, 此处仅记录日志)
+      try { dlog('followup', 'actions rendered: ' + (out.actions || []).join('; ').slice(0, 80)); } catch (_) {}
     }
     appendDiagHist(out || {}, []);
   } catch (e) {
@@ -2493,9 +2901,18 @@ async function runAutoOptimize(res) {
   alerts.unshift({ severity: '高', title: 'AI 自动优化已执行', detail: outs.map(r => r.action + ': ' + (r.msg || r.status)).join('; ').slice(0, 200),
                    suggestion: okN + '/' + outs.length + ' 个动作成功', time: safeTime() });
 }
+// v3.4.24: AI 诊断间隔智能调节 — 低风险拉长省 90% 流量, 中高风险保持 60s
+// _aiIntervalMs 由最近一次诊断 risk 决定: 高=60s, 中=120s, 低=300s (下一轮自动应用)
+let _aiIntervalMs = 60000;
+const _lastRiskLevel = { risk: null };
+function aiIntervalFor(risk) {
+  if (risk === '高') return 60000;
+  if (risk === '中') return 120000;
+  return 300000;   // 低风险 5 分钟一问
+}
 async function runAi(force) {
   if (!latestData) return;
-  if (!force && Date.now() - lastAiTime < 60000) return;
+  if (!force && Date.now() - lastAiTime < _aiIntervalMs) return;
   if (aiBusy || _fnBusy) return;
   aiBusy = true; _fnBusy = true;
   // v3.2.59: 成功才更新 lastAiTime — 原实现调用前就标记, 失败后想立刻重试得等满 60s
@@ -2504,19 +2921,41 @@ async function runAi(force) {
     let res = null, lastErr = null;
     // v3.2.83: 等待期间动态进度提示, 不再干等静态文字
     const _waitEl = document.getElementById('aiContent');
-    let _waitTick = 0;
-    const _waitTimer = setInterval(() => {
-      if (!_waitEl) return;
-      _waitTick++;
-      const _dots = '.'.repeat((_waitTick % 4) + 1);
-      const _secs = _waitTick * 2;
-      _waitEl.querySelector('.empty') && (_waitEl.querySelector('.empty').textContent =
-        'AI 分析中' + _dots + ' （已等 ' + _secs + 's）');
-    }, 2000);
+    // v3.4.32: 等待计时器硬停兜底 — 旧实现 _waitTimer 只在成功/失败分支 clearInterval,
+  // 但 callAi 任何一环挂起 (exec 桥接死锁 / fetch 不 settle / 网络黑洞) 时 Promise 永不 settle,
+  // 计时器就永远跑下去 => "已等 Xs" 无限叠加到几百秒. 现以 90s 硬上限强制收尾.
+  let _waitTick = 0;
+  const _waitTimer = setInterval(() => {
+    if (!_waitEl) return;
+    _waitTick++;
+    const _dots = '.'.repeat((_waitTick % 4) + 1);
+    const _secs = _waitTick * 2;
+    _waitEl.querySelector('.empty') && (_waitEl.querySelector('.empty').textContent =
+      'AI 分析中' + _dots + ' （已等 ' + _secs + 's）');
+  }, 2000);
+  // v3.4.32: 硬超时兜底 — 无论哪环挂起, 90s 强制结束等待状态
+  const _hardStop = setTimeout(() => {
+    clearInterval(_waitTimer);
+    try {
+      const _el = document.getElementById('aiContent');
+      if (_el) {
+        const _fe = _el.querySelector('.empty');
+        if (_fe && _fe.textContent.indexOf('AI 分析中') >= 0) {
+          _fe.textContent = 'AI 分析超时（90s），请检查网络或稍后重试';
+        }
+      }
+    } catch (_) {}
+  }, 90000);
     // v3.2.71: 推理模型偶发把 max_tokens 全花在思考链上(content 为空, finish_reason=length),
     // 重试一次通常就正常 — 原实现直接降级到本地诊断, 用户看到"AI 调用失败"
     for (let attempt = 0; attempt < 2 && !res; attempt++) {
-      try { res = await callAi(latestData); }
+      try {
+        // v3.4.32: 总超时 race — callAi 任何一环挂起 (exec 桥接死锁 / fetch 不 settle) 时,
+        // 旧实现 await 永远悬空 => aiBusy/_fnBusy 永久锁死, 面板所有功能被"请先等当前任务结束"挡死.
+        // 90s 强制 reject, 让 catch/finally 正常走完, 锁自然解开, 计时器也一并清除.
+        const _to = new Promise((_, _rej) => setTimeout(() => _rej(new Error('AI 调用总超时(90s)')), 90000));
+        res = await Promise.race([callAi(latestData), _to]);
+      }
       catch (e) {
         lastErr = e;
         // v3.2.71: 只有"思考超时"这种偶发错误才重试, 配置错误直接降级
@@ -2528,7 +2967,12 @@ async function runAi(force) {
     }
     if (res) {
       lastAiTime = Date.now();   // v3.2.59: 移到成功后
-      clearInterval(_waitTimer);
+      // v3.4.32: 成功收尾 — 清掉硬停定时器, 否则 90s 后会覆盖已渲染的结果
+      clearTimeout(_hardStop); clearInterval(_waitTimer);
+      // v3.4.24: 按本轮 risk 调整下一轮间隔 (高 60s / 中 120s / 低 300s)
+      const _nr = res.risk_level || '低';
+      _lastRiskLevel.risk = _nr;
+      _aiIntervalMs = aiIntervalFor(_nr);
       renderAi(res, false);
       renderActions(document.getElementById('aiActions'), res.actions || []);
       appendDiagHist(res, res.actions || []);
@@ -2543,6 +2987,11 @@ async function runAi(force) {
     }
   } catch (e) {
     clearInterval(_waitTimer);
+    clearTimeout(_hardStop);   // v3.4.32: 失败收尾同样清理
+    // v3.4.32: 失败也更新 lastAiTime — 否则 5s 轮询立刻重跑 runAi(false),
+    // 每次重新进入都先 innerHTML='AI 分析中...' 再挂 90s, 用户看到的就是无限叠加的等待计时器
+    lastAiTime = Date.now();
+    _aiIntervalMs = 120000;   // 失败后 2 分钟再试, 不刷屏
     // v3.2.34: AI 失败时运行完整本地诊断 (而非只显示错误信息), 并标注降级原因
     const res = diagnoseLocal(latestData);
     const reason = String(e.message || e).slice(0, 40);
@@ -2625,6 +3074,12 @@ async function runAi(force) {
   }
   // v3.2.34: 清理单个应用缓存 (由扫描结果的清理按钮调用)
   window.cleanCacheApp = (pkg) => execAndShow('clean_cache ' + pkg);
+  // v3.4.21: 存储详情弹窗的清理入口 — 复用 execAndShow, 结果落 AI 诊断区
+  // mode: 'all' = 一键清理 ≥50MB 缓存; 'scan' = 扫描大缓存列表
+  window.__atriaStoreClean = function (mode) {
+    if (mode === 'all') execAndShow('clean_cache_all 50');
+    else if (mode === 'scan') execAndShow('scan_cache top');
+  };
   // v3.2.34: 系统优化按钮 - 全部经 execAction → optimize.sh 白名单 + 保护名单
   document.getElementById('scanCacheBtn').addEventListener('click', () => execAndShow('scan_cache top'));
   document.getElementById('powersaveBtn').addEventListener('click', () => {
@@ -2669,6 +3124,7 @@ document.getElementById('optBtn').addEventListener('click', () => {
   if (aiBusy) { toastFn && toastFn('Atria: 正在执行优化'); return; }
   runOptimize();
 });
+// v3.4.34: 玻璃预览页(glass/glass3.html)已整体删除, 入口按钮与跳转逻辑一并移除
 document.getElementById('aiCfgBtn').addEventListener('click', async () => {
   const urlEl = document.getElementById('cfgUrl');
   const keyEl = document.getElementById('cfgKey');
@@ -2909,9 +3365,9 @@ aiAutoEl.addEventListener('change', e => {
     devEl && (devEl.textContent = '⏳ 正在读取状态... [v' + VER_TAG + ']');
     // v3.2.71: fetch 失败时 (file:// 偶发被拒) 不再干等 1.2s 后的 poll,
     // 立即用 exec 通道同步拉一次采集, 拿到数据立即 renderFast — 黑屏时间从 1.2s+ 降到 ~300ms
+    // v3.4.16: exec 直跑 collect.sh 输出被截断且无 power 字段, 改用 base64 单行读 status.json
     try {
-      const exec = await awaitExec();
-      const out = await exec(COLLECT_CMD);
+      const out = await fetchStatusViaExec();
       const d0 = out && out.trim() ? JSON.parse(out) : null;
       bootStep('exec_fallback_ok');
       if (d0 && d0.mem) renderFast(d0);
@@ -2982,6 +3438,16 @@ aiAutoEl.addEventListener('change', e => {
 </div>
 
 <!-- v3.2.28: 设置弹窗 -->
+<div id="detailModal" class="modal" style="display:none">
+  <div class="modal-card" style="max-width:460px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2 style="margin:0" id="dmTitle">详情</h2>
+      <button id="dmCloseBtn" class="btn btn-ghost" style="padding:2px 10px;font-size:12px"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div id="dmBody" style="font-size:13px;color:#cbd5e1;line-height:1.9"></div>
+  </div>
+</div>
+
 <div id="settingsModal" class="modal" style="display:none">
   <div class="modal-card" style="max-width:480px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -3288,6 +3754,9 @@ async function ensureCandidateIcons(pkgs, box) {
         first = false;
       }
       await exec('chmod 644 ' + WL_FILE);
+      // v3.4.12: 保存后立即回读刷新编辑器 — textarea 展示磁盘真实内容,
+      // 消除"保存了但看到的还是旧的"疑虑 (loadWhitelist 会清 msg, 所以回读放在设 msg 之前)
+      try { await loadWhitelist(); } catch (_) {}
       // v3.2.36: 保存后异步触发白名单应用图标提取 (后台执行, 不阻塞面板;
       // 后端 collect_loop.sh refresh_icons 也会每约 60s 检测 mtime 变化自动刷新)
       try {
@@ -3358,6 +3827,236 @@ async function ensureCandidateIcons(pkgs, box) {
     try { ensureCandidateIcons(cands, box); } catch (e) {}
   });
   // v3.2.43: 设置弹窗纳入 modalOpen 管理 — 打开期间暂停轮询渲染
+
+// v3.4.19: 点击卡片弹出悬浮详情 — 数据取 latestData (渲染用同一份, 无额外采集开销)
+(function () {
+  function $(id) { try { return document.getElementById(id); } catch (e) { return null; } }
+  var modal = $('detailModal'), title = $('dmTitle'), body = $('dmBody');
+  if (!modal || !title || !body) return;
+
+  function esc(s) { return String(s == null ? '--' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function n(v, d) { var x = parseFloat(v); return isFinite(x) ? x : (d == null ? '--' : d); }
+  function f(v, p) { var x = parseFloat(v); return isFinite(x) ? x.toFixed(p == null ? 1 : p) : '--'; }
+  function row(k, v) { return '<div class="dm-row"><span class="dm-k">' + k + '</span><span class="dm-v">' + v + '</span></div>'; }
+  function sub(s) { return '<div class="dm-sub">' + s + '</div>'; }
+
+  // 每张卡片的详情构建器: 从 latestData 取数据, 没有则隐藏行
+  var builders = {
+    mem: function (d) {
+      var m = d.mem || {};
+      var rows = row('占用百分比', f(m.percent, 0) + '%') + row('已用 / 总量', n(m.used_mb) + ' / ' + n(m.total_mb) + ' MB');
+      var procs = (d.processes || []).slice(0, 5);
+      var pl = procs.map(function (p) { return esc((p.name || p.pkg || '?').split('.').pop()) + ' ' + n(p.rss_mb) + 'MB'; }).join(' · ');
+      if (pl) rows += sub('内存占用前 5: ' + pl);
+      return rows;
+    },
+    cpu: function (d) {
+      var c = d.cpu || {}, k = d.kernel || {};
+      var rows = row('总占用', f(c.percent, 0) + '%');
+      if (k.cpu_clusters) rows += row('核心数', esc(k.cpu_clusters));
+      var procs = (d.processes || []).filter(function (p) { return parseFloat(p.cpu_pct) > 0; }).sort(function (a, b) { return parseFloat(b.cpu_pct) - parseFloat(a.cpu_pct); }).slice(0, 5);
+      var pl = procs.map(function (p) { return esc((p.name || p.pkg || '?').split('.').pop()) + ' ' + f(p.cpu_pct, 0) + '%'; }).join(' · ');
+      if (pl) rows += sub('CPU 占用前 5: ' + pl);
+      return rows;
+    },
+    temp: function (d) {
+      var th = d.thermal || [];
+      var rows = '';
+      th.sort(function (a, b) { return parseFloat(b.temp) - parseFloat(a.temp); });
+      th.slice(0, 6).forEach(function (z) {
+        rows += row(esc(z.label || 'zone'), f(z.temp, 1) + '°C' + (z.count > 1 ? ' (' + z.count + '个)' : ''));
+      });
+      if (!rows) rows = row('温度', '无传感器数据');
+      return rows;
+    },
+    batt: function (d) {
+      var b = d.battery || {};
+      var rows = row('电量', f(b.capacity, 0) + '%') + row('温度', f(b.temperature, 1) + '°C') + row('状态', esc(b.status || '--'));
+      // v3.4.25: 电池增强数据 (batt_ext, collect_loop 注入)
+      var be = d.batt_ext || {};
+      // 健康度优先用 BMS 固件判断, 其次算出来的 SoH
+      var hl = be.health || (be.soh ? (be.soh >= 90 ? 'Good' : be.soh >= 80 ? 'Fair' : 'Poor') : '--');
+      rows += row('健康', esc(hl) + (be.soh ? ' (' + be.soh + '%)' : ''));
+      if (be.cycle_count != null) rows += row('充电循环', be.cycle_count + ' 次');
+      // 充电功率: >0 充电中, <0 放电中 (负数转正显示)
+      if (be.power_w != null) rows += row('实时功率', (be.power_w > 0 ? '+' : '') + f(be.power_w, 2) + ' W' + (be.power_w > 0 ? ' 充电' : be.power_w < 0 ? ' 放电' : ''));
+      if (b.voltage) rows += row('电压', n(b.voltage) + ' mV');
+      if (b.current) rows += row('电流', n(b.current) + ' mA');
+      if (be.model) rows += row('电池型号', esc(be.model));
+      return rows;
+    },
+    store: function (d) {
+      var st = (Array.isArray(d.storage) ? d.storage : [])[0] || {};
+      var rows = row('占用百分比', f(st.percent, 1) + '%') + row('已用 / 总量', f(st.used_gb) + ' / ' + f(st.total_gb) + ' GB') + row('剩余', f(st.free_gb) + ' GB');
+      var du = (d.du || {}).data || {};
+      var top3 = Object.keys(du).sort(function (a, b) { return du[b] - du[a]; }).slice(0, 3);
+      if (top3.length) {
+        var pl = top3.map(function (k) { return esc(k.split('.').pop()) + ' ' + f(du[k] / 1024 / 1024) + 'G'; }).join(' · ');
+        rows += sub('/data 应用占用前 3: ' + pl);
+      }
+      // v3.4.21: 存储清理 — 一键清 + 大缓存应用逐个清 (调 optimize.sh, 走 execAndShow 结果区)
+      rows += '<div style="margin-top:10px;display:flex;gap:8px">';
+      rows += '<button class="btn btn-ai" style="flex:1;padding:8px;font-size:13px" onclick="window.__atriaStoreClean(\'all\')">🧹 一键清理缓存</button>';
+      rows += '<button class="btn btn-ghost" style="padding:8px;font-size:13px" onclick="window.__atriaStoreClean(\'scan\')">扫描大缓存</button>';
+      rows += '</div>';
+      rows += sub('一键清理: 删除所有应用 ≥50MB 的 cache/code_cache (敏感/前台应用自动跳过); 扫描: 列出大缓存应用可逐个清理。清理结果会显示在下方 AI 诊断区。');
+      return rows;
+    },
+    net: function (d) {
+      var nt = Array.isArray(d.net) ? d.net : [];
+      var n0 = nt[0] || {};
+      var rows = row('接口', esc(n0.dev || '--'));
+      if (n0.rx_speed_kb != null) rows += row('下载速度', f(n0.rx_speed_kb, 1) + ' KB/s');
+      if (n0.tx_speed_kb != null) rows += row('上传速度', f(n0.tx_speed_kb, 1) + ' KB/s');
+      if (n0.rx_bytes != null) rows += row('累计接收', f(n0.rx_bytes / 1024 / 1024) + ' MB');
+      if (n0.tx_bytes != null) rows += row('累计发送', f(n0.tx_bytes / 1024 / 1024) + ' MB');
+      // v3.4.25: 每应用流量排行 (net_stats, dumpsys netstats 注入) — 谁在偷流量
+      var nst = d.net_stats || {};
+      var keys = Object.keys(nst).sort(function (a, b) { return nst[b] - nst[a]; });
+      if (keys.length) {
+        rows += sub('流量排行 (累计)');
+        keys.slice(0, 5).forEach(function (k) {
+          var nm = (d.labels && d.labels[k]) || k.split('.').pop();
+          rows += row(esc(nm), f(nst[k], 1) + ' MB');
+        });
+      }
+      return rows;
+    },
+    wl: function (d) {
+      var w = d.wakelock || '';
+      var rows = row('锁持有者', w ? esc(w) : '无锁 (可正常息屏休眠)');
+      rows += sub('wakelock 是"谁在阻止休眠"的指示灯。空 = 健康; 有应用名 = 该应用在后台持锁耗电。Android 12+ 系统 Doze 已接管大部分后台限制, 该值多数时候为空属正常。');
+      return rows;
+    },
+    pw: function (d) {
+      var pw = d.power || {};
+      var rows = row('屏幕亮起耗电', f(pw.screen_on, 1) + ' mAh') + row('总耗电', f(pw.total, 1) + ' mAh');
+      var top = pw.top || [];
+      top.slice(0, 6).forEach(function (p) {
+        // v3.4.20: 显示应用名 (从采集数据 d.labels 查 — collect_loop 注入, 无需异步 exec), 查不到降级短包名
+        var pkg = String(p.pkg || '?');
+        var label = (d.labels && d.labels[pkg]) || (window.__atriaLabels && window.__atriaLabels[pkg]);
+        var name = label || pkg.split('.').pop();
+        rows += row(esc(name), f(p.mah, 1) + ' mAh' + (label ? '' : ' · ' + esc(pkg.split('.').pop())));
+      });
+      if (!top.length) rows += sub('batterystats 数据较少 (设备重启或重置后计数从 0 开始), 使用一段时间后即有排行。');
+      return rows;
+    },
+    // v3.4.32: 系统状态 — 息屏检测 / 活动通知 / 应用崩溃记录
+    sys: function (d) {
+      var rows = '';
+      // 屏幕状态
+      var sc = d.screen || {};
+      rows += sub('屏幕');
+      rows += row('屏幕状态', sc.state === 'on' ? '亮屏' : sc.state === 'off' ? '息屏' : '--');
+      if (sc.off_secs != null && sc.state === 'off') rows += row('已息屏', Math.floor(sc.off_secs / 60) + ' 分 ' + (sc.off_secs % 60) + ' 秒');
+      // 通知
+      var nt = d.notifications || {};
+      rows += sub('活动通知');
+      if (nt.total != null) {
+        rows += row('通知总数', nt.total + ' 条');
+        var nkeys = Object.keys(nt.apps || {}).sort(function (a, b) { return nt.apps[b] - nt.apps[a]; });
+        nkeys.slice(0, 5).forEach(function (k) {
+          var nm = (d.labels && d.labels[k]) || k.split('.').pop();
+          rows += row(esc(nm), nt.apps[k] + ' 条');
+        });
+      } else rows += row('通知', '无数据');
+      // 崩溃记录
+      var cr = d.crashes || {};
+      rows += sub('应用崩溃 (近 24h)');
+      if (cr.count_24h != null) {
+        // v3.4.32: 分类展示 — app 是真实应用故障, tool/system 与应用无关单独标出
+        rows += row('崩溃总数', cr.count_24h + ' 次' +
+          ((+cr.app || 0) + (+cr.system || 0) + (+cr.tool || 0) > 0
+            ? ' (应用 ' + (cr.app || 0) + ' / 系统 ' + (cr.system || 0) + ' / 工具 ' + (cr.tool || 0) + ')'
+            : ''));
+        // v3.4.32: 爆发告警 — 1 小时窗内同进程 >=3 次
+        if (cr.burst && cr.burst.process) {
+          rows += row('⚠ 爆发', esc(cr.burst.process) + ' 近期 ' + cr.burst.count + ' 次' +
+            (cr.burst.window_mins > 0 ? ' (' + cr.burst.window_mins + ' 分钟内)' : ''));
+        }
+        if (cr.recent) {
+          (String(cr.recent).split('|')).slice(0, 5).forEach(function (p) {
+            rows += row('崩溃进程', esc(p));
+          });
+        } else if (cr.count_24h > 0) {
+          rows += row('崩溃进程', '解析中');
+        }
+      } else rows += row('崩溃', '无数据');
+      // v3.4.32: 系统安全防护
+      var sec = d.security || {};
+      rows += sub('安全防护');
+      if (sec.level != null) {
+        var lvTxt = {high:'⚠ 高危', med:'⚠ 中危', ok:'安全'}[sec.level] || sec.level;
+        rows += row('威胁等级', lvTxt + (sec.high > 0 ? ' (' + sec.high + ' 高危/' + sec.med + ' 中危/' + sec.info + ' 提示)' : ''));
+        if (sec.threats) {
+          String(sec.threats).split('@').slice(0, 6).forEach(function (t) {
+            if (t) rows += row('威胁项', esc(t));
+          });
+        }
+        rows += row('监控项', '设备管理器 / 辅助服务 / 通知监听 / 锁屏凭据 / 新增包');
+      } else rows += row('安全', '无数据');
+      return rows;
+    }
+  };
+
+  var NAMES = { mem: '内存详情', cpu: 'CPU 详情', temp: '温度详情', batt: '电池详情', store: '存储详情', net: '网速详情', wl: '耗电来源详情', pw: '耗电排行详情', sys: '系统状态详情' };
+
+  function openDetail(card) {
+    var fn = builders[card];
+    if (!fn) return;
+    title.textContent = NAMES[card] || '详情';
+    var d = window.__atriaLastData || latestData || {};
+    try { body.innerHTML = fn(d); } catch (e) { body.innerHTML = '<div class="dm-sub">数据异常: ' + esc(String(e.message || e)).slice(0, 80) + '</div>'; }
+    modal.style.display = 'flex';
+    modalOpen = true;
+    // v3.4.20: 耗电排行详情首次打开时加载应用名缓存 (base64 单行读, 防 exec 截断)
+    if (card === 'pw' && !window.__atriaLabels) {
+      window.__atriaLabels = {};   // 先置空对象防重复加载
+      try {
+        var execP = (typeof awaitExec === 'function') ? awaitExec() : Promise.resolve(window.__atriaExec);
+        Promise.resolve(execP).then(function (exec) {
+          if (!exec) return;
+          return Promise.resolve(exec('base64 -w0 /data/local/tmp/atria_labels.conf')).then(function (out) {
+            var b64 = String(out || '').replace(/\s+/g, '');
+            if (!b64) return;
+            var txt = decodeURIComponent(escape(atob(b64)));
+            var map = {};
+            String(txt).split(/\r?\n/).forEach(function (line) {
+              var i = line.indexOf('\t');
+              if (i > 0 && i < line.length - 1) map[line.slice(0, i)] = line.slice(i + 1);
+            });
+            window.__atriaLabels = map;
+            // 重新渲染 (如果弹窗还开着)
+            if (modal.style.display === 'flex') {
+              try { body.innerHTML = fn(window.__atriaLastData || {}); } catch (e) {}
+            }
+          });
+        }).catch(function () {});
+      } catch (e) {}
+    }
+  }
+
+  // 绑定: 事件委托 — 点 .card[data-card] 即弹对应详情 (避免按钮/链接误触发)
+  document.addEventListener('click', function (e) {
+    var el = e.target;
+    while (el && el.classList && !el.classList.contains('card')) el = el.parentElement;
+    if (!el || !el.getAttribute || !el.getAttribute('data-card')) return;
+    // 点到卡片内按钮 (设置/日志等) 不弹详情; closest 旧 WebView 无该方法时降级查 tagName
+    var tg = e.target;
+    if (tg.closest) {
+      if (tg.closest('button,a,input,textarea')) return;
+    } else {
+      while (tg && tg !== el) { var tn = (tg.tagName || '').toLowerCase(); if (tn === 'button' || tn === 'a' || tn === 'input' || tn === 'textarea') return; tg = tg.parentElement; }
+    }
+    openDetail(el.getAttribute('data-card'));
+  });
+
+  // v3.4.19: 关闭按钮 — bind 是外层 IIFE 私有函数, 用原生 addEventListener
+  var closeBtn = $('dmCloseBtn');
+  if (closeBtn) closeBtn.addEventListener('click', function () { try { modal.style.display = 'none'; modalOpen = false; } catch (e) {} });
+})();
+
   bind('settingsBtn', function () {
     var m = $('settingsModal');
     if (!m) return;

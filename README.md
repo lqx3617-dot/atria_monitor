@@ -200,12 +200,24 @@ AI 会幻觉。`KILL_GUARD`（前端）与 `PKG_PROTECTED`（后端 optimize.sh�
 | v3.4.4 | 进程列表紧凑化 |
 | v3.4.5 | 双列 Grid 炸裂修复（minmax(0,1fr)） |
 | **v3.4.6** | 网速显示方向化（↑/↓ 箭头） |
+| v3.4.7 | AI 链路探针页（ai_probe.html） |
+| v3.4.9 | AI 白名单管理动作（whitelist add/remove 持久化） |
+| v3.4.13–17 | 耗电排行注入（dumpsys batterystats 解析 + UID→包名映射） |
+| v3.4.20 | 应用名标签提取（launcher dump 解析，面板显示真实应用名） |
+| v3.4.21 | 一键清理全部大缓存应用（clean_cache_all） |
+| v3.4.22 | 媒体播放保护（正在播放音乐/音频的应用不被杀）+ 屏幕状态注入 |
+| v3.4.24 | AI 诊断间隔按风险动态调节（高 60s / 中 120s / 低 300s）+ 历史自动截断 |
+| v3.4.25 | 电池增强（SoH/循环次数/充电功率）+ 每应用流量排行 + 温度告警节流 |
+| v3.4.27 | 崩溃爆发监控（dropbox 解析 TOMBSTONE/ANR，同进程 1h ≥3 条 = burst） |
+| v3.4.28 | 锁机木马三防（设备管理器/辅助服务/悬浮窗监控 + 应急解锁动作） |
+| v3.4.29 | 温度告警阈值回调（骁龙 8 Gen 3 类平台轻载 48-52°C 属正常） |
+| **v3.4.34** | 全项目代码审查：pkg_label.sh 注入修复 + module.prop 版本统一 + 清理非交付文件 |
 
 ---
 
 ## 
 ## 安装包下载
-点击下载：[**atria_monitor_v3.4.6.zip**](https://github.com/lqx3617-dot/atria_monitor/releases/download/v3.4.6/atria_monitor_v3.4.6.zip)（766 KB，14 文件，SHA256 `741e21a948aeba7eb1aec22ddc8da37e7d62c2716db0cb7aef149d4e5f0be407`）
+点击下载：[**atria_monitor_v3.4.34.zip**](https://github.com/lqx3617-dot/atria_monitor/releases/download/v3.4.34/atria_monitor_v3.4.34.zip)（779 KB，15 文件，SHA256 `6ecf603dc250d4854fee1cca8a5abbd3ce852bd928731d5a7bb6c92a8d0a1006`）
 
 刷入方法：内核管理器（KernelSU / SukiSU / Magisk / APatch）选「模块」→ 「从存储安装」，选择下载的 zip，安装后重启即可用。面板打开方式：内核管理器里点本模块，或用任何 file:// 可访问的 WebView 打开「面板」。
 
