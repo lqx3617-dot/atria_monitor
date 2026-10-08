@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.87 - 开机自启服务
+# Atria Monitor v3.4.88 - 开机自启服务
 # v3.2.36: 白名单应用图标提取 (刷新检测由 collect_loop.sh refresh_icons 负责)
 # v3.2.34: 启动环境兼容 (KernelSU late_service 阶段 PATH 可能残缺, 补全常用路径)
 export PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:$PATH

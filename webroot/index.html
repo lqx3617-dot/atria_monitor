@@ -847,7 +847,7 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
 // v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
 // v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
 // __atriaVer and UI now reference this constant instead of duplicating the literal.
-const VER_TAG = 'v3.4.87';
+const VER_TAG = 'v3.4.88';
 const LOG_MAX = 500;
 const logBuf = [];
 // v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)
@@ -913,6 +913,7 @@ const ctx = (cv && cv.getContext) ? cv.getContext('2d') : null;
 let history = [], alerts = [], latestData = null;
 // v3.2.34: 网速差值 / 温度历史
 let lastNet = {}, netHistory = [];
+let lastNetText = '';   // v3.4.88: AI payload 用 — 与面板网速卡同源, AI 看到的=用户看到的
 const lastAlertMap = {};
 const lastThermalMap = {};   // v3.2.92: 温度告警节流
 let lastModsKey = '', lastAlertsKey = '', lastProcsKey = '';
@@ -2207,6 +2208,7 @@ function render(d) {
   /* v3.4.9: 主数值改显主导方向 — 上传>下载显示 ↑, 反之 ↓, 避免把 60KB/s 上传看成"在下载" */
   const leadRate = Math.max(rxRate, txRate);
   const nTxt = totalRate > 0 ? ((txRate > rxRate ? '↑ ' : '↓ ') + fmtRate(leadRate)) : (nets.length ? '0 B/s' : '--');
+  lastNetText = nTxt;   // v3.4.88: 存给 buildAiPayload — 与网速卡显示同源
   if (nTxt !== _r.nt) { _r.nt = nTxt; netEl.textContent = nTxt; pulse(netEl); setDot(netDot, totalRate > 2097152 ? '#facc15' : '#4ade80'); }
   const nCls = 'value ' + (totalRate > 2097152 ? 'yellow' : 'green');
   if (nCls !== _r.ncls) { _r.ncls = nCls; netEl.className = nCls; }
@@ -2845,6 +2847,8 @@ function buildAiPayload(d) {
     battery: { capacity: b.capacity, status: b.status, temperature: b.temperature },
     storage: st ? { percent: st.percent, total_gb: st.total_gb, free_gb: st.free_gb } : null,
     network_active: netOn || 'none',
+    // v3.4.88: 实时网速 — 与面板网速卡同源 (lastNet 差分), AI 才知道"网速多快"而不只是哪张网卡在跑
+    network_speed: lastNetText || 'unavailable',
     trend: hist || 'unavailable',
     last_diag: _diagExtra || null,
     top_processes: procs, recent_logs: logcat, current_alerts: alertTxt,
@@ -3066,6 +3070,10 @@ const AI_PROMPT = '你是安卓系统优化专家。分析设备状态、温度�
     // v3.4.25: 电池增强 + 流量排行
     'batt_ext 为电池健康数据：soh 为健康度百分比（< 80 为明显衰减，< 70 建议换电池），cycle_count 为充电循环次数，health 为 BMS 固件健康判断（Good/Fair/Poor），power_w 为实时功率（正=充电中，负=放电中），model 为电池型号；电池类问题必看此字段。' +
     'net_stats 为每应用累计流量排行（MB，包名→用量）：流量异常/后台偷流量类问题必看，引用具体应用名。' +
+    // v3.4.88: 补三个字段的判读指引 — 原实现只喂字段没写说明, 模型对 cpu_cores/netq 格式靠猜
+    'network_speed 为实时网速（与面板网速卡同源，格式如 "↓ 222 KB/s" 或 "0 B/s"）：判断网速快慢只看此字段，network_active 只是网卡名。' +
+    'cpu_cores 为 CPU 各核频率与负载（格式如 "c0 2188.8GHz/75%"，最多 8 核）：util_pct 为该核占用率，>85% 持续高负载的单核是卡顿元凶；频率高+占用低=该核在跑后台任务，频率低+占用高=被调度器压制。' +
+    'netq 为网络质量：rtt_ms 为延迟（<50ms 良好，>200ms 差，游戏/视频会议敏感），sockets 为活跃连接数（>1500 偏高，说明后台应用大量建连，配合 net_stats 找偷流量应用）。' +
     // v3.4.32: 屏幕状态 / 通知 / 崩溃
     'screen 为屏幕状态：state 为 on(亮屏)/off(息屏)，off_secs 为本次息屏持续秒数（息屏掉电、wakelock 类问题必看：息屏时耗电应极低，息屏中掉电快说明后台异常）。' +
     'notifications 为活动通知：total 为总数，apps 为包名→通知数；通知多的应用若非正在播放媒体，属于常驻打扰型耗电。' +
