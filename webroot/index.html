@@ -840,7 +840,7 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
 // v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
 // v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
 // __atriaVer and UI now reference this constant instead of duplicating the literal.
-const VER_TAG = 'v3.4.77';
+const VER_TAG = 'v3.4.78';
 const LOG_MAX = 500;
 const logBuf = [];
 // v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)
@@ -3034,8 +3034,8 @@ const AI_PROMPT = '你是安卓系统优化专家。分析设备状态、温度�
     'screen 为屏幕状态：state 为 on(亮屏)/off(息屏)，off_secs 为本次息屏持续秒数（息屏掉电、wakelock 类问题必看：息屏时耗电应极低，息屏中掉电快说明后台异常）。' +
     'notifications 为活动通知：total 为总数，apps 为包名→通知数；通知多的应用若非正在播放媒体，属于常驻打扰型耗电。' +
     'crashes 为近 24h 应用崩溃记录：count_24h 为 TOMBSTONE/ANR/原生崩溃总次数，recent 为崩溃进程名列表（| 分隔）；崩溃类问题必看，logcat 抓不住的持久存证。' +
-    // v3.4.32: 分类 + 爆发
-    'crashes 进一步分为 app（应用自身崩溃，真实的故障）/ system（dex2oat 等系统编译进程，常由安装更新触发，不算故障）/ tool（uiautomator 等 UI 自动化工具自身崩溃，与被测应用无关）；判断崩溃严重度一律以 app 为准，tool/system 高不代表设备不稳。' +
+// v3.4.32: 分类 + 爆发
+     'crashes 进一步分为 app（应用自身崩溃，真实的故障）/ system（dex2oat 等系统编译进程，常由安装更新触发，不算故障）/ tool（uiautomator 等 UI 自动化工具自身崩溃，与被测应用无关）/ vendor（vendor HAL 硬件抽象层进程崩溃，属于固件/驱动层问题，不算用户应用故障）；判断崩溃严重度一律以 app 为准，tool/system/vendor 高不代表设备不稳。' +
     'crashes.burst 非空时表示存在崩溃爆发（同一进程在短时间窗内崩溃 >=3 次，count 为次数、window_mins 为时间窗分钟数），这是严重稳定性问题的信号，必须在 summary 中明确指出并建议更新或冻结该应用。' +
     // v3.4.32: 安全防护
     'security 为系统安全威胁检测结果：level 为 ok(安全)/med(中危)/high(高危)，high/med/info 为三项计数，threats 为威胁明细列表（@ 分隔，每条形如"high;device_admin: 包名/组件"）。' +
@@ -4609,10 +4609,10 @@ async function ensureCandidateIcons(pkgs, box) {
       var cr = d.crashes || {};
       rows += sub('应用崩溃 (近 24h)');
       if (cr.count_24h != null) {
-        // v3.4.32: 分类展示 — app 是真实应用故障, tool/system 与应用无关单独标出
+        // v3.4.32: 分类展示 — app 是真实应用故障, tool/system/vendor 与应用无关单独标出
         rows += row('崩溃总数', cr.count_24h + ' 次' +
-          ((+cr.app || 0) + (+cr.system || 0) + (+cr.tool || 0) > 0
-            ? ' (应用 ' + (cr.app || 0) + ' / 系统 ' + (cr.system || 0) + ' / 工具 ' + (cr.tool || 0) + ')'
+          ((+cr.app || 0) + (+cr.system || 0) + (+cr.tool || 0) + (+cr.vendor || 0) > 0
+            ? ' (应用 ' + (cr.app || 0) + ' / 系统 ' + (cr.system || 0) + ' / 工具 ' + (cr.tool || 0) + ' / Vendor ' + (cr.vendor || 0) + ')'
             : ''));
         // v3.4.32: 爆发告警 — 1 小时窗内同进程 >=3 次
         if (cr.burst && cr.burst.process) {
@@ -4638,7 +4638,7 @@ async function ensureCandidateIcons(pkgs, box) {
             if (t) rows += row('威胁项', esc(t));
           });
         }
-        rows += row('监控项', '设备管理器 / 辅助服务 / 通知监听 / 锁屏凭据 / 新增包');
+        rows += row('监控项', '设备管理器 / 辅助服务 / 通知监听 / 锁屏凭据 / 悬浮窗 / 格机意图 / 新增包');
       } else rows += row('安全', '无数据');
       return rows;
     },

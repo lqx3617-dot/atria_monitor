@@ -19,7 +19,7 @@
 #   /data/local/tmp/atria_ad_hosts.txt  生成的 hosts 文件
 #   /data/adb/atria_ad_state.json       状态文件
 
-VERSION="v3.4.77"
+VERSION="v3.4.78"
 ADB_DIR="/data/adb"
 SRC_FILE="$ADB_DIR/atria_ad_sources.conf"
 WL_FILE="$ADB_DIR/atria_ad_whitelist.conf"

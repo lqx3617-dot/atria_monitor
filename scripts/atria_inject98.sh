@@ -396,6 +396,8 @@ inject_crashes() {
             case "$_P" in
               *uiautomator*|*app_process*|*com.android.commands*) _C='tool' ;;
               *dex2oat*|*installd*|*system_server*) _C='system' ;;
+              # v3.4.78: vendor HAL 进程独立归类 (硬件抽象层崩溃≠用户应用故障, AI 诊断需区分)
+              */vendor/*|*android.hardware.*|*hal_*|*vendor.*) _C='vendor' ;;
               *) _C='app' ;;
             esac
             printf '%s|%s|%s\n' "${_T:-0}" "$_C" "$_P"
@@ -410,6 +412,7 @@ inject_crashes() {
       _A=$(printf '%s\n' "$_CLS" | grep -cE '^[0-9]+\|app\|')
       _S=$(printf '%s\n' "$_CLS" | grep -cE '^[0-9]+\|system\|')
       _T2=$(printf '%s\n' "$_CLS" | grep -cE '^[0-9]+\|tool\|')
+      _V=$(printf '%s\n' "$_CLS" | grep -cE '^[0-9]+\|vendor\|')
       # 爆发检测: 同类同进程 1 小时窗内 >=3 条 (多个爆发取 count 最大者)
       _BURST=$(printf '%s\n' "$_CLS" | awk -F'|' '
         { key = $2 "|" $3; cnt[key]++;
@@ -433,9 +436,9 @@ inject_crashes() {
           _BURST_J="{\"process\":\"$_BP\",\"count\":$_BC,\"window_mins\":$_BW}"
         fi
       fi
-      DB_CACHE="\"count_24h\":$_CNT,\"app\":$_A,\"system\":$_S,\"tool\":$_T2,\"recent\":\"$_LAST\",\"burst\":$_BURST_J,\"updated_ts\":$(date +%s)"
+      DB_CACHE="\"count_24h\":$_CNT,\"app\":$_A,\"system\":$_S,\"tool\":$_T2,\"vendor\":$_V,\"recent\":\"$_LAST\",\"burst\":$_BURST_J,\"updated_ts\":$(date +%s)"
     else
-      DB_CACHE="\"count_24h\":0,\"app\":0,\"system\":0,\"tool\":0,\"recent\":\"\",\"burst\":null,\"updated_ts\":$(date +%s)"
+      DB_CACHE="\"count_24h\":0,\"app\":0,\"system\":0,\"tool\":0,\"vendor\":0,\"recent\":\"\",\"burst\":null,\"updated_ts\":$(date +%s)"
     fi
   fi
   if [ -n "$DB_CACHE" ] && [ -n "$DATA" ]; then
@@ -455,6 +458,8 @@ inject_crashes() {
 SEC_TICK=0
 SEC_CACHE=''
 SEC_BASELINE=/data/local/tmp/atria_sec_baseline.txt
+# v3.4.78: 格机防护 — /data/data 目录数基线 (首次采样记入, 降幅>=10% 报警)
+SEC_DATA_BASE=''
 inject_security() {
   SEC_TICK=$((SEC_TICK + 1))
   # v3.4.62: 周期 45 -> 90 (~较慢周期下约 20 分钟一次), 减少 pm list/dumpsys 阻塞机会
@@ -497,11 +502,66 @@ inject_security() {
         esac
       done)"
     fi
-    # ---- 4. 锁屏凭据 ----
+    # ---- 4. 悬浮窗权限 (v3.4.78: SYSTEM_ALERT_WINDOW 非系统包 = 中危, 锁机木马盖屏途径) ----
+    # dumpsys appops 一次性导出, awk 提取 Package 段内 SYSTEM_ALERT_WINDOW (allow) 的包名
+    # 允许列表: 系统包 + 宿主助手 + 已知合法悬浮窗应用 (输入法/launcher/系统 UI)
+    _OV=$(timeout 8 dumpsys appops 2>/dev/null | grep -B1 'SYSTEM_ALERT_WINDOW (allow)' | grep 'Package' \
+      | sed 's/.*Package //; s/:.*//' | sort -u)
+    if [ -n "$_OV" ]; then
+      _THR="${_THR}$(printf '%s\n' "$_OV" | while read -r _P; do
+        [ -z "$_P" ] && continue
+        case "$_P" in
+          # 系统包与厂商包放行
+          com.android.*|com.google.*|com.oplus.*|com.heytap.*|com.coloros.*|com.oppo.*) ;;
+          # v3.4.78: 宿主助手与已知合法应用放行 (面板/AI 助手/输入法/launcher 本身就需要悬浮窗)
+          com.ai.assistance.operit|com.niki914.zafiro|com.iflytek.inputmethod|com.gtq.launcher.*|com.microsoftsdk.crossdeviceservicebroker) ;;
+          *) printf '\nmed|overlay: %s' "$_P" ;;
+        esac
+      done)"
+    fi
+    # ---- 5. 锁屏凭据 ----
     _LP=$(settings get secure lockscreen.password_type 2>/dev/null)
     if [ -n "$_LP" ] && [ "$_LP" != "null" ]; then
       _THR="${_THR}
 med|lockscreen_credential: password_type=$_LP"
+    fi
+    # ---- 6. 格机/数据破坏意图 (v3.4.78: recovery wipe 意图 + 应用数据批量消失) ----
+    # 6a. recovery 格机命令文件: 正常不存在, 出现且含 --wipe_data = 高危 (格机意图已提交)
+    if [ -f /cache/recovery/command ]; then
+      _WCmd=$(cat /cache/recovery/command 2>/dev/null | tr '\n' ' ' | cut -c1-60)
+      case "$_WCmd" in
+        *'"'*|*'\\'*) _WCmd='' ;;
+      esac
+      if [ -n "$_WCmd" ]; then
+        _THR="${_THR}
+high|wipe_intent: ${_WCmd}"
+      fi
+    fi
+    # 6b. shutdown-checkpoints 里出现 recovery/wipe 参数 = 中危 (重启进 recovery 的请求)
+    _SCP=$(grep -h 'Shutdown request' /data/system/shutdown-checkpoints/* 2>/dev/null \
+      | grep -icE 'recovery|wipe' || true)
+    case "$_SCP" in *[!0-9]*) _SCP=0;; esac
+    if [ "$_SCP" -gt 0 ]; then
+      _THR="${_THR}
+med|recovery_request: 近期关机请求含 recovery/wipe 参数"
+    fi
+    # 6c. 应用数据批量消失: /data/data 目录数与包缓存比对, 短时间锐减 = 数据破坏进行中
+    # (基线包数记 SEC_DATA_BASE, 降幅 >30% 触发高危; 首次运行只记基线)
+    _DN=$(ls /data/data 2>/dev/null | wc -l)
+    case "$_DN" in *[!0-9]*) _DN=0;; esac
+    if [ "$_DN" -gt 0 ]; then
+      if [ -z "$SEC_DATA_BASE" ]; then
+        SEC_DATA_BASE=$_DN
+      else
+        _Drop=$(( (SEC_DATA_BASE - _DN) * 100 / SEC_DATA_BASE ))
+        if [ "$_Drop" -ge 30 ]; then
+          _THR="${_THR}
+high|data_wipe: /data/data 目录数 $SEC_DATA_BASE -> $_DN (降幅 ${_Drop}%)"
+        elif [ "$_Drop" -ge 10 ]; then
+          _THR="${_THR}
+med|data_loss: /data/data 目录数 $SEC_DATA_BASE -> $_DN (降幅 ${_Drop}%)"
+        fi
+      fi
     fi
     # v3.4.62: pm list packages 实测可卡死采集循环 (通道挂起 1800s 实测), 改用 8s 超时 +
     # 缓存优先: SEC_PKG_CACHE 有效期内直接复用, 不再每周期都跑

@@ -1,6 +1,6 @@
 id=atria_monitor
 name=Atria Monitor
-version=v3.4.77
-versionCode=30477
+version=v3.4.78
+versionCode=30478
 author=atria
 description=安卓设备实时监控与AI诊断（WebUI面板，零依赖，秒级启动，兼容 KernelSU/SukiSU/Magisk/APatch）
