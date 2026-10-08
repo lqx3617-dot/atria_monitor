@@ -846,7 +846,7 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
 // v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
 // v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
 // __atriaVer and UI now reference this constant instead of duplicating the literal.
-const VER_TAG = 'v3.4.81';
+const VER_TAG = 'v3.4.82';
 const LOG_MAX = 500;
 const logBuf = [];
 // v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)
@@ -2257,7 +2257,23 @@ function render(d) {
         if (pn.indexOf('.') > 0 && !pkSeen.has(pn)) { pkSeen.add(pn); pkList.push(pn); }
         row.children[0].textContent = x.pid;
         const nameEl = row.children[1];
-        nameEl.textContent = x.name;
+        // v3.4.82: 进程名显示应用中文名 — 包名形态查 labels sidecar, 查不到降级原包名;
+        // 系统进程名 (无点号如 system_server) 不动。title 放完整包名供悬停查看。
+        // 带子进程后缀 (com.tencent.mm:push) 先查全名, 查不到按主包名查
+        var _dispName = pn;
+        if (pn.indexOf('.') > 0) {
+          var _labs = (latestData && latestData.labels) || (window.__atriaLabels) || null;
+          var _lb = (_labs && _labs[pn]) || null;
+          if (!_lb && pn.indexOf(':') > 0) {
+            var _main = pn.split(':')[0];
+            _lb = (_labs && _labs[_main]) || null;
+          }
+          if (_lb) {
+            _dispName = String(_lb);
+            nameEl.title = pn;
+          }
+        }
+        nameEl.textContent = _dispName;
         // v3.4.22: 正在播放音频的应用标 🎧 (latestData.media_playing 由 collect_loop 注入)
         const _isMP = (() => {
           const _arr = (latestData && Array.isArray(latestData.media_playing)) ? latestData.media_playing : [];
@@ -2265,7 +2281,7 @@ function render(d) {
           for (let i = 0; i < _arr.length; i++) if (_arr[i] === _pn) return true;
           return false;
         })();
-        if (_isMP) nameEl.textContent = '🎧 ' + x.name;
+        if (_isMP) nameEl.textContent = '🎧 ' + _dispName;
         nameEl.className = 'p-name' + (heavy ? ' yellow' : '') + (_isMP ? ' green' : '');
         const statEl = row.children[2];
         statEl.textContent = st;
@@ -2778,7 +2794,20 @@ function buildAiPayload(d) {
   // AI 建议前就知道哪些进程可杀。历史实据: am force-stop 宿主/operit 共 53 次全被 skip
   const procs = (d.processes || []).slice(0, 15).map(p => {
     const _k = _procKillable(p.name, p.pid);
-    return p.name + '(' + p.pid + ')=' + p.rss_mb + 'MB' + (typeof p.cpu_pct === 'number' ? ' cpu' + p.cpu_pct + '%' : '')
+    // v3.4.82: 补应用中文名 — 包名保留 (AI 动作匹配需要), 应用名辅助判读
+    // 带子进程后缀 (com.tencent.mm:push) 先查全名, 查不到按主包名查
+    var _pn2 = String(p.name || '');
+    var _lb2 = '';
+    if (_pn2.indexOf('.') > 0) {
+      var _labs2 = (d && d.labels) || (window.__atriaLabels) || null;
+      var _v2 = (_labs2 && _labs2[_pn2]) || null;
+      if (!_v2 && _pn2.indexOf(':') > 0) {
+        var _main2 = _pn2.split(':')[0];
+        _v2 = (_labs2 && _labs2[_main2]) || null;
+      }
+      if (_v2) _lb2 = String(_v2) + '/';
+    }
+    return _lb2 + p.name + '(' + p.pid + ')=' + p.rss_mb + 'MB' + (typeof p.cpu_pct === 'number' ? ' cpu' + p.cpu_pct + '%' : '')
       + (_k !== 'ok' ? ' [不可杀:' + (_k === 'guard' ? '系统保护' : _k === 'media' ? '正在播放' : '未知') + ']' : '');
   }).join(', ').slice(0, 1400);
   const alertTxt = alerts.slice(0, 10).map(a => '[' + a.severity + '] ' + a.title + ': ' + a.detail).join('\n').slice(0, 1500);

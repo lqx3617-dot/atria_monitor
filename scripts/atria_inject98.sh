@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.81 - 数据注入器 (inject_*)
+# Atria Monitor v3.4.82 - 数据注入器 (inject_*)
 # v3.3.1: du/wakelock 注入点修复 (inject_kernel 追加后插入点错位)
 # v3.4.13: 新增 inject_power — 应用耗电排行榜 (dumpsys batterystats --charged 解析)
 # v3.2.100: 耗电来源显示稳定性修复 (空锁不注入, 排除 WindowManager 屏幕锁)
