@@ -752,13 +752,19 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
       <div class="label">系统状态</div>
       <div id="sysVal" class="value" style="color:#a78bfa">--</div>
       <div id="sysDetail" class="detail">息屏 · 通知 · 崩溃</div>
-    </div>
-    <!-- v3.4.53: 广告屏蔽 — systemless hosts, 借鉴 bindhosts/AdAway/anti-AD -->
+<!-- v3.4.53: 广告屏蔽 — systemless hosts, 借鉴 bindhosts/AdAway/anti-AD -->
     <div class="card u-mini" data-card="ad">
       <span class="dot" id="adDot" style="color:#64748b;background:#64748b"></span>
       <div class="label">广告屏蔽</div>
       <div id="adVal" class="value" style="color:#64748b">未启用</div>
       <div id="adDetail" class="detail">点击启用 systemless hosts</div>
+    </div>
+    <!-- v3.4.80: 格机防护 — 3s 轮询设备管理器, 陌生 admin 立即拦截 + 删 APK 断根 -->
+    <div class="card u-mini" data-card="guard">
+      <span class="dot" id="guardDot" style="color:#4ade80;background:#4ade80"></span>
+      <div class="label">格机防护</div>
+      <div id="guardVal" class="value" style="color:#4ade80">运行中</div>
+      <div id="guardDetail" class="detail">设备管理器监控</div>
     </div>
   </div><!-- /cards -->
 
@@ -840,7 +846,7 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
 // v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
 // v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
 // __atriaVer and UI now reference this constant instead of duplicating the literal.
-const VER_TAG = 'v3.4.78';
+const VER_TAG = 'v3.4.81';
 const LOG_MAX = 500;
 const logBuf = [];
 // v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)
@@ -4748,9 +4754,57 @@ async function ensureCandidateIcons(pkgs, box) {
         + '<div id="dmAdMsg" class="dm-msg">更新规则约 1-3 分钟, 可在进度中关闭弹窗</div>';
       return rows;
     },
+    // v3.4.81: 格机防护详情 — 状态 + 拦截日志 (含删除文件数) + 进程扫描命中 + 白名单路径
+    guard: function (d) {
+      var st = window.__atriaGuardState || null;
+      var rows = sub('格机防护');
+      if (!st) {
+        rows += row('状态', '读取中...');
+        return rows;
+      }
+      var lvMap = { high: '⚠ 拦截触发', ok: '正常运行' };
+      var lvTxt = lvMap[st.level] || st.level;
+      rows += row('防护状态', lvTxt);
+      rows += row('设备管理器', st.admins + ' 个激活');
+      rows += row('拦截次数', st.blocked);
+      if (typeof st.files_deleted === 'number' && st.files_deleted > 0) {
+        rows += row('已删文件', st.files_deleted + ' 个 (APK 断根)');
+      }
+      // v3.4.81: 进程扫描命中数与最近杀掉的格机命令
+      if (typeof st.killed_procs === 'number' && st.killed_procs > 0) {
+        rows += row('已杀进程', st.killed_procs + ' 个 (格机命令)');
+        if (st.last_kill) {
+          rows += row('最近格机命令', String(st.last_kill).slice(0, 50));
+        }
+      }
+      if (st.last_pkg) {
+        rows += row('最近拦截', String(st.last_pkg).slice(0, 40));
+        rows += row('动作', st.last_action === 'blocked' ? '已禁用 + 删文件' : '禁用失败');
+      }
+      if (st.ts) {
+        try { rows += row('更新时间', new Date((+st.ts) * 1000).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})); } catch (e) {}
+      }
+      rows += row('轮询周期', '3 秒 (设备管理器 + 进程扫描)');
+      rows += row('拦截手段', 'pm disable-user + 删 APK/数据 + 杀进程树');
+      rows += row('白名单文件', '/data/adb/atria_guard_whitelist.conf');
+      rows += row('默认放行', '系统包 / 宿主助手 / 输入法 / Launcher');
+      // 拦截日志
+      var log = window.__atriaGuardLog || [];
+      if (log.length) {
+        rows += sub('拦截日志');
+        log.slice(0, 20).forEach(function (e) {
+          var act = e.action === 'blocked' ? '已禁用' : (e.action === 'killed' ? '已杀进程' : '禁用失败');
+          if (typeof e.files_deleted === 'number' && e.files_deleted > 0) act += ' (删 ' + e.files_deleted + ' 文件)';
+          var t = '--';
+          try { t = new Date((e.ts || 0) * 1000).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}); } catch (er) {}
+          rows += row(String(e.pkg || '?').slice(0, 40), act + ' / ' + t);
+        });
+      }
+      return rows;
+    },
   };
 
-  var NAMES = { mem: '内存详情', cpu: 'CPU 详情', temp: '温度详情', batt: '电池详情', store: '存储详情', net: '网速详情', wl: '耗电来源详情', pw: '耗电排行详情', sys: '系统状态详情', inst: '安装拦截', alert: '告警历史', cpucores: 'CPU 核心', netq: '网络质量', ad: '广告屏蔽' };
+  var NAMES = { mem: '内存详情', cpu: 'CPU 详情', temp: '温度详情', batt: '电池详情', store: '存储详情', net: '网速详情', wl: '耗电来源详情', pw: '耗电排行详情', sys: '系统状态详情', inst: '安装拦截', alert: '告警历史', cpucores: 'CPU 核心', netq: '网络质量', ad: '广告屏蔽', guard: '格机防护' };
 
 
   // v3.4.40: 安装拦截——打开 inst 卡片时异步加载安装日志 (base64 单行读, 同 labels 模式)
@@ -4874,6 +4928,20 @@ async function ensureCandidateIcons(pkgs, box) {
           if (modal.style.display === 'flex') {
             try { body.innerHTML = fn(window.__atriaLastData || {}); } catch (e) {}
             bindAdModalButtons();
+          }
+        }).catch(function () {});
+      } catch (e) {}
+    }
+    // v3.4.80: 格机防护—— guard 卡片首次打开时加载状态 + 拦截日志
+    if (card === 'guard') {
+      try {
+        var execP5 = (typeof awaitExec === 'function') ? awaitExec() : Promise.resolve(window.__atriaExec);
+        Promise.resolve(execP5).then(function (exec5) {
+          if (!exec5) return null;
+          return loadGuardState(exec5);
+        }).then(function () {
+          if (modal.style.display === 'flex') {
+            try { body.innerHTML = fn(window.__atriaLastData || {}); } catch (e) {}
           }
         }).catch(function () {});
       } catch (e) {}
@@ -5194,11 +5262,109 @@ if (adCardEl) adCardEl.addEventListener('click', async (ev) => {
   if (ev.target.closest('button,input,a')) return;
   if (window.__atriaOpenDetail) window.__atriaOpenDetail('ad');
 });
-
 // 注册到轮询链
 const _origPoll = window.__atriaPoll || null;
 window.addEventListener('load', () => { setTimeout(pollAdState, 3000); });
 setInterval(pollAdState, 60000);   // 兜底: 每 60s 独立轮询 (不依赖主 poll)
+
+// v3.4.80: 格机防护 — 状态 + 拦截日志加载 (base64 单行读, 同 inst 模式)
+const GUARD_STATE_FILE = '/data/local/tmp/atria_guard_state.json';
+const GUARD_LOG_FILE = '/data/local/tmp/atria_guard_log.jsonl';
+const guardValEl = document.getElementById('guardVal');
+const guardDotEl = document.getElementById('guardDot');
+const guardDetailEl = document.getElementById('guardDetail');
+
+function loadGuardState(exec) {
+  if (!exec) return Promise.resolve(null);
+  return Promise.resolve(exec('base64 -w0 ' + GUARD_STATE_FILE + ' 2>/dev/null')).then(function (out) {
+    var b64 = String(out || '').replace(/\s+/g, '');
+    if (!b64) return null;
+    var txt = decodeURIComponent(escape(atob(b64)));
+    var line = String(txt).split('\n')[0].trim();
+    var st = null;
+    try { st = JSON.parse(line); } catch (e) {
+      var s = line.indexOf('{'), e2 = line.lastIndexOf('}');
+      if (s >= 0 && e2 > s) st = JSON.parse(line.slice(s, e2 + 1));
+    }
+    window.__atriaGuardState = st || null;
+    return st;
+  }).catch(function () { return null; });
+}
+
+function loadGuardLog(exec) {
+  if (!exec) return Promise.resolve(null);
+  return Promise.resolve(exec('base64 -w0 ' + GUARD_LOG_FILE + ' 2>/dev/null')).then(function (out) {
+    var b64 = String(out || '').replace(/\s+/g, '');
+    window.__atriaGuardLog = [];
+    if (!b64) return null;
+    var txt = decodeURIComponent(escape(atob(b64)));
+    var arr = [];
+    String(txt).split(/\r?\n/).forEach(function (line) {
+      line = line.trim();
+      if (!line) return;
+      try { arr.push(JSON.parse(line)); } catch (e) {}
+    });
+    window.__atriaGuardLog = arr.slice(-30).reverse();
+    return window.__atriaGuardLog;
+  }).catch(function () { return null; });
+}
+
+// v3.4.80: 格机防护卡片轮询 — 15s 一次 (状态文件极小, 读取 <10ms)
+let guardBusy = false;
+async function pollGuardState() {
+  if (guardBusy) return;
+  guardBusy = true;
+  try {
+    let exec = null;
+    try { exec = await awaitExec(); } catch (e) { exec = null; }
+    if (!exec) return;
+    const st = await loadGuardState(exec);
+    if (!st) {
+      // 状态文件不存在 = 守护进程未启动
+      if (guardValEl) { guardValEl.textContent = '未启动'; guardValEl.style.color = '#facc15'; }
+      if (guardDotEl) { guardDotEl.style.color = '#facc15'; guardDotEl.style.background = '#facc15'; }
+      if (guardDetailEl) guardDetailEl.textContent = '守护进程未运行';
+      return;
+    }
+    window.__atriaGuardState = st;
+    // 有拦截记录时顺带加载日志 (无拦截时不读, 省 exec 通道)
+    if (st.blocked > 0) {
+      try { await loadGuardLog(exec); } catch (e) {}
+    }
+    // 渲染卡片
+    if (st.level === 'high') {
+      // v3.4.81: high 可能来自设备管理器拦截或进程扫描杀进程
+      var _gTxt = '⚠ 拦截触发';
+      if (st.blocked > 0 && st.killed_procs > 0) _gTxt = '⚠ 已拦截 ' + st.blocked + ' · 杀 ' + st.killed_procs;
+      else if (st.blocked > 0) _gTxt = '⚠ 已拦截 ' + st.blocked;
+      else if (st.killed_procs > 0) _gTxt = '⚠ 已杀 ' + st.killed_procs + ' 格机进程';
+      if (guardValEl) { guardValEl.textContent = _gTxt; guardValEl.style.color = '#f87171'; }
+      if (guardDotEl) { guardDotEl.style.color = '#f87171'; guardDotEl.style.background = '#f87171'; }
+      if (guardDetailEl) {
+        if (st.last_pkg) guardDetailEl.textContent = String(st.last_pkg).slice(0, 24) + ' 已禁用+删文件';
+        else if (st.last_kill) guardDetailEl.textContent = '已杀: ' + String(st.last_kill).slice(0, 20);
+        else guardDetailEl.textContent = '拦截触发';
+      }
+    } else {
+      if (guardValEl) { guardValEl.textContent = '运行中'; guardValEl.style.color = '#4ade80'; }
+      if (guardDotEl) { guardDotEl.style.color = '#4ade80'; guardDotEl.style.background = '#4ade80'; }
+      if (guardDetailEl) guardDetailEl.textContent = st.admins > 0 ? '监控 ' + st.admins + ' 个设备管理器' : '设备管理器 + 进程扫描';
+    }
+    // 若详情弹窗开着, 刷新它
+    if (window.__atriaOpenDetail && document.querySelector('.dm-backdrop') && document.querySelector('.dm-backdrop').style.display === 'flex') {
+      try {
+        var fn = builders.guard;
+        var bodyEl = document.querySelector('.dm-body') || document.getElementById('dmBody');
+        if (fn && bodyEl) bodyEl.innerHTML = fn(window.__atriaLastData || {});
+      } catch (e) {}
+    }
+  } catch (e) {}
+  finally { guardBusy = false; }
+}
+
+window.addEventListener('load', () => { setTimeout(pollGuardState, 4000); });
+setInterval(pollGuardState, 15000);   // 15s 轮询 (状态文件 ~120B, 读取极快)
+
 
 </script>
 <script>

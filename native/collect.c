@@ -1,4 +1,4 @@
-/* Atria Monitor v3.2.97 - C 采集端原型
+/* Atria Monitor v3.4.6 - C 采集端原型
  * 替代 collect.sh 的核心指标采集: mem/cpu/thermal/battery/storage/net/processes
  * 输出与 shell 版完全兼容的 JSON
  */
@@ -249,7 +249,9 @@ static void json_escape(char *dst, size_t sz, const char *src) {
         else if (c == '\n') { dst[o++] = '\\'; dst[o++] = 'n'; }
         else if (c == '\r') { dst[o++] = '\\'; dst[o++] = 'r'; }
         else if (c == '\t') { dst[o++] = '\\'; dst[o++] = 't'; }
-        else if (c < 0x20) { continue; }   /* 其他控制字符丢弃 */
+        else if (c < 0x20) { dst[o++] = '\\'; dst[o++] = 'u'; dst[o++] = '0'; dst[o++] = '0';
+                              char hex[] = "0123456789abcdef";
+                              dst[o++] = hex[c >> 4]; dst[o++] = hex[c & 0xf]; }   /* v3.4.51: 控制字符转 \u00XX — 原直接丢弃会静默篡改进程名, 与其他转义行为不一致 */
         else dst[o++] = c;
     }
     dst[o] = 0;
@@ -347,6 +349,15 @@ static int collect_procs(proc_t *out, int max_out) {
             out[n].pid = pid; strncpy(out[n].name, name, sizeof(out[n].name) - 1);
             out[n].rss_kb = rss; out[n].stat = st;
             n++;
+        } else {
+            /* v3.4.51: 超过 max_out 时淘汰当前最小 rss 项, 而非无序丢弃遍历尾部的进程
+               原实现按 /proc 目录顺序丢弃, 系统进程数 >80 时可能漏掉大内存进程 */
+            int mini = 0;
+            for (int k = 1; k < max_out; k++) if (out[k].rss_kb < out[mini].rss_kb) mini = k;
+            if (rss > out[mini].rss_kb) {
+                out[mini].pid = pid; strncpy(out[mini].name, name, sizeof(out[mini].name) - 1);
+                out[mini].rss_kb = rss; out[mini].stat = st;
+            }
         }
     }
     closedir(d);

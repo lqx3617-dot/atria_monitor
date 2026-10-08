@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.43 - 安装脚本
+# Atria Monitor v3.4.81 - 安装脚本
 MODDIR=${0%/*}
 
 set_perm_recursive "$MODDIR" 0 0 0755 0644
@@ -48,7 +48,7 @@ if [ -x "$MODPATH/native/icon_extract_c_arm64" ] && [ -f "$WL_FILE" ]; then
   chmod 0644 "$ICONDIR"/* 2>/dev/null
 fi
 
-ui_print "- Atria Monitor v3.4.43 已安装"
+ui_print "- Atria Monitor v3.4.81 已安装"
 ui_print "- 重启后查看监控面板:"
 ui_print "- KernelSU/SukiSU: 管理器中点击本模块"
 ui_print "- Magisk/APatch: root 文件管理器打开 webroot/index.html"

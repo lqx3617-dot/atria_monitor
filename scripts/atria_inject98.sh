@@ -1,4 +1,5 @@
 #!/system/bin/sh
+# Atria Monitor v3.4.81 - 数据注入器 (inject_*)
 # v3.3.1: du/wakelock 注入点修复 (inject_kernel 追加后插入点错位)
 # v3.4.13: 新增 inject_power — 应用耗电排行榜 (dumpsys batterystats --charged 解析)
 # v3.2.100: 耗电来源显示稳定性修复 (空锁不注入, 排除 WindowManager 屏幕锁)
@@ -75,7 +76,9 @@ inject_du() {
         /storage/emulated/0/Android/data) _KEY=appdata ;;
         *) _KEY=ext ;;
       esac
-      _DIRS=$(du -s "$_SRC"/* 2>/dev/null | sort -rn | head -5)
+      # v3.4.81: du 加 timeout 保护 — 445 个目录展开偶发慢 (实测 1.9s, 闪存慢时 10-30s), 超时跳过该源
+      # 注意: timeout 只包 du 本身 (包 sh -c 管道时 toybox timeout 信号传递有 bug, 实测卡满 15s)
+      _DIRS=$(timeout 15 du -s "$_SRC"/* 2>/dev/null | sort -rn | head -5)
       [ -n "$_DIRS" ] || continue
       printf '%s\n' "$_DIRS" | awk -F'\t' '{
         n = split($2, parts, "/"); base = parts[n]
@@ -458,7 +461,8 @@ inject_crashes() {
 SEC_TICK=0
 SEC_CACHE=''
 SEC_BASELINE=/data/local/tmp/atria_sec_baseline.txt
-# v3.4.78: 格机防护 — /data/data 目录数基线 (首次采样记入, 降幅>=10% 报警)
+# v3.4.80: 格机检测(被动) — /data/data 目录数基线 (首次采样记入, 降幅>=10% 报警)
+# 注意: 这是检测层只告警不拦截; 主动拦截层 guard_watch.sh (v3.4.79+设备管理器拦截, v3.4.81+进程命令行扫描) 已恢复部署
 SEC_DATA_BASE=''
 inject_security() {
   SEC_TICK=$((SEC_TICK + 1))
