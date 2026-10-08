@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.82 - 卸载清理
+# Atria Monitor v3.4.83 - 卸载清理
 LOCK=/data/local/tmp/atria_monitor.lock
 OUT=/data/local/tmp/atria_status.json
 
@@ -23,4 +23,4 @@ rm -rf /data/local/tmp/atria_tmp 2>/dev/null
 # v3.2.36: 清理应用图标目录 (WebView 可读, 故放 /data/local/tmp)
 rm -rf /data/local/tmp/atria_icons 2>/dev/null
 
-echo "Atria Monitor v3.4.82 已卸载"
+echo "Atria Monitor v3.4.83 已卸载"

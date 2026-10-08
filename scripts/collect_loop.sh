@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.82 - 后台采集循环
+# Atria Monitor v3.4.83 - 后台采集循环
 # v3.2.36: 白名单图标后台刷新 (refresh_icons, 检测白名单 mtime 变化, 后台提取不阻塞采集)
 # v3.2.34: 补全 PATH (开机服务阶段 PATH 可能残缺)
 export PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:$PATH
@@ -586,6 +586,8 @@ if [ -n "$DATA" ]; then
     case "$_BB" in ''|*[!0-9]*) _BB=0;; esac   # awk 不可用时放行, 不卡采集
     if [ "$_BB" != "0" ]; then
       plog "WARN 括号不平衡 bal=$_BB, 已丢弃"
+      # v3.4.83: 转储被丢弃的原始数据 (只留最近一份, 带时间戳), 供排查 C 采集器偶发截断根因
+      { echo "# discarded_at=$(date +%s) bal=$_BB len=${#DATA}"; printf '%s\n' "$DATA"; } > /data/local/tmp/atria_bad_json.txt 2>/dev/null
       DATA=''
     fi
     case "$DATA" in
