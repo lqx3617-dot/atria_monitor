@@ -772,6 +772,7 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
 
   <h2 class="u-h2-ok"><svg class="ic"><use href="#i-module"/></svg>模块状态</h2>
   <div id="modules"><div class="empty">无</div></div>
+  </div>
   </div><!-- /page-detail -->
 
 
@@ -846,7 +847,7 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
 // v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
 // v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
 // __atriaVer and UI now reference this constant instead of duplicating the literal.
-const VER_TAG = 'v3.4.86';
+const VER_TAG = 'v3.4.87';
 const LOG_MAX = 500;
 const logBuf = [];
 // v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)

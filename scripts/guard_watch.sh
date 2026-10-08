@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.86 - 格机防护守护进程 (anti-wipe guard daemon)
+# Atria Monitor v3.4.87 - 格机防护守护进程 (anti-wipe guard daemon)
 # 实测依据: dumpsys device_policy 38ms/次, ps -A 880进程 50ms, grep /proc/cmdline 70ms
 # 拦截手段: pm disable-user --user 0 (实测有效, remove-active-admin 要求 testOnly 对木马无效)
 # v3.4.80: 触发拦截时彻底删除威胁文件 (APK + 数据目录), 断根防止复活
