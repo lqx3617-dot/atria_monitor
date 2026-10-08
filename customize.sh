@@ -1,6 +1,11 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.84 - 安装脚本
+# Atria Monitor v3.4.85 - 安装脚本
 MODDIR=${0%/*}
+
+# v3.4.85: 解锁旧版本 chattr +i 的静态文件 (service.sh 会锁它们, 不解锁更新会失败)
+for _F in /data/local/tmp/atria_static_modules.json /data/local/tmp/baseline_pkgs.txt; do
+  [ -f "$_F" ] && chattr -i "$_F" 2>/dev/null
+done
 
 set_perm_recursive "$MODDIR" 0 0 0755 0644
 set_perm "$MODDIR/scripts/collect.sh"      0 0 0755

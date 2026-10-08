@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.84 - 格机防护守护进程 (anti-wipe guard daemon)
+# Atria Monitor v3.4.85 - 格机防护守护进程 (anti-wipe guard daemon)
 # 实测依据: dumpsys device_policy 38ms/次, ps -A 880进程 50ms, grep /proc/cmdline 70ms
 # 拦截手段: pm disable-user --user 0 (实测有效, remove-active-admin 要求 testOnly 对木马无效)
 # v3.4.80: 触发拦截时彻底删除威胁文件 (APK + 数据目录), 断根防止复活
@@ -200,6 +200,38 @@ scan_fds() {
       done
 }
 
+# ---- v3.4.85: syscw 高频 IO 检测 (用户态 unlink 频率替代) ----
+# 内核态 vfs_unlink 挂钩不可行 (CONFIG_BPF_LSM 未开启), inotifywait/auditd 设备也没有。
+# 替代方案: /proc/pid/io 的 syscw (写系统调用次数) 是单调递增计数器, 差分值 = 时间窗内
+# 写操作次数。格机/批量删除特征: 短时间海量写调用 (rm -rf /data 每删一文件至少 1 次 write)。
+# 阈值: 单进程 3 秒内 syscw 增量 > 2000 (平均 667/s, 正常应用 3 秒增量 <100) 判为恶意。
+# 只抓应用进程 (uid>=10000); 系统进程 (如 zygote) 写操作频繁属正常。
+# 性能: ps -A -o PID,UID 一次性取 uid (逐进程读 status 要 14s, ps 只要 50ms),
+# 再逐进程读 io (78 个应用进程, 实测总计 ~1s)
+# 输出: "PID<TAB>syscw增量"
+# v3.4.85b: 实测发现 QQ MSF 长连接进程 syscw 增量持续 >2000 (心跳+消息收发),
+# 被反复误杀 (杀掉 QQ 自动重启 MSF 又被杀, 死循环)。改为只检测不杀 — 记录到
+# 日志供分析, 不执行 kill_proc_tree。等收集足够数据校准阈值后再决定是否启用杀。
+scan_io() {
+  _IOSTATE=/data/local/tmp/atria_io_prev.txt
+  _PREV=/data/local/tmp/atria_io_prev_cur.txt
+  cp "$_IOSTATE" "$_PREV" 2>/dev/null
+  : > "$_IOSTATE"
+  # ps 一次性取所有应用进程 PID (比逐进程读 status 快 280 倍)
+  ps -A -o PID,UID 2>/dev/null | awk '$2>=10000{print $1}' | while IFS= read -r _PID; do
+    [ -z "$_PID" ] && continue
+    _SYSW=$(awk '/^syscw:/{print $2}' /proc/$_PID/io 2>/dev/null)
+    [ -n "$_SYSW" ] || continue
+    echo "$_PID:$_SYSW" >> "$_IOSTATE"
+    _PREVW=$(grep -m1 "^$_PID:" "$_PREV" 2>/dev/null | cut -d: -f2)
+    [ -n "$_PREVW" ] || continue
+    _DELTA=$((_SYSW - _PREVW))
+    [ "$_DELTA" -gt 20000 ] 2>/dev/null || continue   # 30s 窗口, 平均 667/s (v3.4.85b)
+    printf '%s\t%s\n' "$_PID" "$_DELTA"
+  done
+  rm -f "$_PREV" 2>/dev/null
+}
+
 # ---- 主循环: 3 秒轮询 ----
 # dumpsys 实测 38ms, ps+grep 实测 120ms, timeout 5s 兜底 (卡死时跳过本轮, 保住循环不崩)
 while true; do
@@ -213,6 +245,9 @@ while true; do
   # 本轮新增杀进程数单独记 _KILLED_THIS
   _KILLED_THIS=0
   _KILLPID=''
+  # v3.4.85: 动态轮询 — 平时 3s 省电, 检测到异常 (syscw 爆发/有进程被杀) 自动升档 0.5s
+  # _ALERT_UNTIL: 升档到期时间戳 (秒), 每次触发异常顺延 30 秒
+  _ALERT_UNTIL=${_ALERT_UNTIL:-0}
   _KILLCMD=''
 
   # 提取当前激活的设备管理器组件 (格式: 包名/组件名)
@@ -301,6 +336,44 @@ while true; do
     done <<< "$_FDHITS"
   fi
 
+  # ---- v3.4.85: syscw 高频 IO 检测 (低频采样, 不拖慢主循环) ----
+  # v3.4.85b: scan_io 实测耗时 2-3s, 每轮跑会把 3s 周期拖到 5s, 削弱格机检测响应。
+  # 改为每 10 轮跑一次 (约 30s 采样间隔), 差分阈值相应放大: 30s 内 syscw 增量 > 20000
+  # (平均 667/s, 与原 3s/2000 等效)。只检测不杀 (QQ MSF 误杀教训)。
+  _IOHITS=''
+  _IOCNT=${_IOCNT:-0}
+  _IOCNT=$((_IOCNT + 1))
+  if [ "$_IOCNT" -ge 10 ]; then
+    _IOCNT=0
+    _IOHITS=$(scan_io)
+  fi
+  if [ -n "$_IOHITS" ]; then
+    while IFS= read -r _IH; do
+      [ -z "$_IH" ] && continue
+      _IPID=$(printf '%s' "$_IH" | cut -f1)
+      _IDELTA=$(printf '%s' "$_IH" | cut -f2)
+      case "$_IPID" in ''|*[!0-9]*) continue ;; esac
+      case "$_IPID" in $$|$PPID) continue ;; esac
+      _ICMD=$(cat "/proc/$_IPID/cmdline" 2>/dev/null | tr '\0' ' ')
+      [ -z "$_ICMD" ] && continue
+      # 只记录不杀: reason=io_burst_detect, action=detected (不 kill_proc_tree)
+      _ESCI=$(json_esc "$(printf '%s' "$_ICMD" | cut -c1-80)")
+      printf '{"ts":%s,"pkg":"pid:%s","comp":"%s","action":"detected","level":"medium","reason":"io_burst_detect","files_deleted":0}\n' \
+        "$_NOW" "$_IPID" "$_ESCI" >> "$LOG" 2>/dev/null
+    done <<< "$_IOHITS"
+  fi
+
+  # ---- v3.4.85: 动态轮询频率 ----
+  # 触发升档条件: 本轮杀了进程 / syscw 爆发 / 发现块设备 fd / 新增设备管理器
+  if [ "$_KILLED_THIS" -gt 0 ] || [ -n "$_FDHITS" ] || [ -n "$_IOHITS" ] || [ "$_BLOCKED" -gt 0 ]; then
+    _ALERT_UNTIL=$((_NOW + 30))    # 升档 30 秒
+  fi
+  if [ "$_NOW" -lt "$_ALERT_UNTIL" ]; then
+    _SLEEP=0   # 升档期间不休 (连续扫描, 抢救窗口)
+  else
+    _SLEEP=3
+  fi
+
   # ---- 写状态文件 (单行 JSON, 供前端 15s 轮询读取) ----
   # level: ok=无威胁 / high=本轮有拦截或杀进程
   # v3.4.81: killed_procs 为累计值 — 本轮有新增则累加, 无新增保持上轮值
@@ -337,5 +410,11 @@ while true; do
   fi
   rm -f /tmp/.gw_rot_$$.txt 2>/dev/null
 
-  sleep 3
+  # v3.4.85: 动态轮询 — 平时 3s, 告警期间 0.5s (升档连续扫描)
+  # sleep 0 在 toybox 里合法 (yield), 但连续空转费电, 用 0.5 折中
+  if [ "$_SLEEP" -eq 0 ]; then
+    sleep 0.5
+  else
+    sleep 3
+  fi
 done

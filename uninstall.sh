@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.84 - 卸载清理
+# Atria Monitor v3.4.85 - 卸载清理
 LOCK=/data/local/tmp/atria_monitor.lock
 OUT=/data/local/tmp/atria_status.json
 

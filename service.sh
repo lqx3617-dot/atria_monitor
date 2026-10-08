@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.84 - 开机自启服务
+# Atria Monitor v3.4.85 - 开机自启服务
 # v3.2.36: 白名单应用图标提取 (刷新检测由 collect_loop.sh refresh_icons 负责)
 # v3.2.34: 启动环境兼容 (KernelSU late_service 阶段 PATH 可能残缺, 补全常用路径)
 export PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:$PATH
@@ -56,6 +56,28 @@ setsid nohup sh "$MODDIR/scripts/install_watch.sh" >> /data/local/tmp/atria_inst
 # v3.4.81: 格机防护守护进程开机自启 (3s 轮询设备管理器 + 进程命令行扫描, 陌生 admin 立即 pm disable-user + 删 APK 断根; rm -rf/mkfs/dd 格机命令立即杀进程树)
 # 单例锁在 guard_watch.sh 内 (PID+cmdline 校验); dumpsys 实测 38ms/次, CPU <1.3%
 setsid nohup sh "$MODDIR/scripts/guard_watch.sh" >> /data/local/tmp/atria_guard_watch.log 2>&1 &
+
+# v3.4.85: 进程自我保护 (防 OOM)
+# oom_score_adj=-1000: 防止内核 OOM killer 优先杀守护进程 (内存紧张时保命)
+# 注: comm 伪装 (改进程名为 vold/keystore) 对 shell 脚本不稳定 — 脚本每 fork 子 shell
+# 会覆盖 comm, 且 scan_io 的管道子进程会还原。故只保留 oom 保护。
+_protect_proc() {
+  _P=$1
+  [ -d /proc/$_P ] || return
+  echo -1000 > /proc/$_P/oom_score_adj 2>/dev/null
+}
+# 等守护进程起来后施加保护 (setsid fork 有延迟, 循环找 3 秒)
+for _I in 1 2 3 4 5 6; do
+  for _P in $(pgrep -f 'collect_loop.sh' 2>/dev/null); do _protect_proc $_P; done
+  for _P in $(pgrep -f 'guard_watch.sh' 2>/dev/null); do _protect_proc $_P; done
+  sleep 1
+done
+# chattr +i 锁静态文件 — 这些文件不频繁写入, 锁了不影响自身运行
+# 注意: atriia_guard_state.json / atriia_status.json 每 3-5s 重写, 不能锁
+# atriia_io_prev.txt 也不能锁 (scan_io 每轮重写)
+for _F in /data/local/tmp/atria_static_modules.json /data/local/tmp/baseline_pkgs.txt; do
+  [ -f "$_F" ] && chattr +i "$_F" 2>/dev/null
+done
 # v3.2.34: 不再写锁. setsid/nohup 后 $! 是父进程 PID (setsid 会 fork), 不可靠.
 # 锁由 collect_loop.sh 自己写入 (echo $$ > $LOCK), 避免锁内 PID 指向已退出的 setsid
 # v3.2.34: 启动自检 (3 秒后确认锁内 PID 存活且为 collect_loop, 失败则重试)
