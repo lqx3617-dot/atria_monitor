@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.83 - 本地优化执行器
+# Atria Monitor v3.4.84 - 本地优化执行器
 # 用法:
 #   optimize.sh              一键优化: 清理大内存非保护进程 + 释放页缓存
 #   optimize.sh exec '动作'  执行单条白名单动作: kill <pid> / am force-stop <包名> / drop_caches

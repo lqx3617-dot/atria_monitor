@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.83 - 格机防护守护进程 (anti-wipe guard daemon)
+# Atria Monitor v3.4.84 - 格机防护守护进程 (anti-wipe guard daemon)
 # 实测依据: dumpsys device_policy 38ms/次, ps -A 880进程 50ms, grep /proc/cmdline 70ms
 # 拦截手段: pm disable-user --user 0 (实测有效, remove-active-admin 要求 testOnly 对木马无效)
 # v3.4.80: 触发拦截时彻底删除威胁文件 (APK + 数据目录), 断根防止复活
@@ -137,6 +137,13 @@ scan_procs() {
         _CMD=$(cat "$_F" 2>/dev/null | tr '\0' ' ')
         # 空 cmdline = 内核线程或已退出进程 — 跳过
         [ -z "$_CMD" ] && continue
+        # v3.4.84: 数据载体豁免 — curl/wget/python/node 的命令行参数是"数据"不是"命令",
+        # -d body 或 URL 里含 "rm -rf /data" 字样只是文本 (实测误杀: 上传含安全文档的
+        # curl 被 wipe_command 杀掉, Release 创建中断)。这些工具不会真执行 rm/mkfs/dd。
+        # sh -c 不豁免 (格机脚本就是 sh -c 跑的)。
+        case "$_CMD" in
+          curl\ *|wget\ *|python\ *|python3\ *|node\ *) continue ;;
+        esac
         # 二次校验: 必须命中真正的危险模式 (词边界 + 危险参数/路径)
         # 1) rm 带危险参数 -rf/-fr 且目标是整盘路径 (子路径不杀, 如 rm -rf /data/local/tmp/x 是正常清理)
         #    尾部界定 [^a-zA-Z0-9/]: 允许分号/引号/&/| 等命令分隔符 (rm -rf /data; reboot), 排除子路径斜杠
@@ -154,19 +161,42 @@ scan_procs() {
           fi
         fi
         # 3) mkfs / mke2fs / make_ext4fs (格式化)
-        if printf '%s' "$_CMD" | grep -qE '(^|/| )(mkfs|mke2fs|make_ext4fs)( |$|\.)'; then
+        if printf '%s' "$_CMD" | grep -qE '(^|[^a-zA-Z0-9])(mkfs|mke2fs|make_ext4fs)( |$|\.)'; then
           if printf '%s' "$_CMD" | grep -qE '(/dev/block|/dev/mmcblk|/data|/system)'; then
             printf '%s\t%s\n' "$_PID" "$_CMD"
             continue
           fi
         fi
         # 4) dd 覆写块设备 (if= 或 of= 指向 /dev/block 或 /dev/mmcblk)
-        if printf '%s' "$_CMD" | grep -qE '(^|/| )dd( |$)'; then
+        if printf '%s' "$_CMD" | grep -qE '(^|[^a-zA-Z0-9])dd( |$)'; then
           if printf '%s' "$_CMD" | grep -qE '(if|of)=/dev/(block|mmcblk)'; then
             printf '%s\t%s\n' "$_PID" "$_CMD"
             continue
           fi
         fi
+      done
+}
+
+# ---- v3.4.84: fd 块设备监控 (用户态 fd 级检测) ----
+# 内核态 kprobe/BPF LSM 在本设备不可行 (CONFIG_MODULE_SIG_PROTECT=y 强制签名,
+# CONFIG_BPF_LSM 未开启), 改为 fd 级监控: 格机工具 dd 覆写前必须先 open 块设备,
+# fd 里会暴露。find -lname 一次性遍历所有进程 fd, 实测 <1s (896 进程)。
+# 只抓应用进程 (uid>=10000): 系统进程如 qseecomd 合法访问 /dev/block/sda1。
+# 输出格式与 scan_procs 一致: "PID<TAB>命令行"
+scan_fds() {
+  find /proc/[0-9]*/fd -maxdepth 1 -type l -lname '/dev/block/*' 2>/dev/null \
+    | while IFS= read -r _FD; do
+        [ -z "$_FD" ] && continue
+        _PID=$(printf '%s' "$_FD" | sed 's|/proc/||; s|/fd/.*||')
+        case "$_PID" in ''|*[!0-9]*) continue ;; esac
+        case "$_PID" in $$|$PPID) continue ;; esac
+        # uid 过滤: 只抓应用进程 (>=10000), 系统/root 进程放过
+        _UID=$(awk '/^Uid:/{print $2}' "/proc/$_PID/status" 2>/dev/null)
+        case "$_UID" in ''|*[!0-9]*) continue ;; esac
+        [ "$_UID" -ge 10000 ] || continue
+        _CMD=$(cat "/proc/$_PID/cmdline" 2>/dev/null | tr '\0' ' ')
+        [ -z "$_CMD" ] && continue
+        printf '%s\t%s\n' "$_PID" "$_CMD"
       done
 }
 
@@ -248,6 +278,27 @@ while true; do
       printf '{"ts":%s,"pkg":"pid:%s","comp":"%s","action":"killed","level":"high","reason":"wipe_command","files_deleted":0}\n' \
         "$_NOW" "$_HPID" "$_ESCC" >> "$LOG" 2>/dev/null
     done <<< "$_HITS"
+  fi
+
+  # ---- v3.4.84: fd 块设备监控 (应用进程打开块设备 = 格机前兆) ----
+  # 与 scan_procs 复用同一处置链 (杀进程树 + 记日志), reason 区分
+  _FDHITS=$(scan_fds)
+  if [ -n "$_FDHITS" ]; then
+    while IFS= read -r _FH; do
+      [ -z "$_FH" ] && continue
+      _FPID=$(printf '%s' "$_FH" | cut -f1)
+      _FCMD=$(printf '%s' "$_FH" | cut -f2-)
+      case "$_FPID" in ''|*[!0-9]*) continue ;; esac
+      case "$_FPID" in $$|$PPID) continue ;; esac
+      [ -z "$_FCMD" ] && continue
+      kill_proc_tree "$_FPID"
+      _KILLED_THIS=$((_KILLED_THIS + 1))
+      _KILLPID="$_FPID"
+      _KILLCMD="$_FCMD"
+      _ESCF=$(json_esc "$(printf '%s' "$_FCMD" | cut -c1-100)")
+      printf '{"ts":%s,"pkg":"pid:%s","comp":"%s","action":"killed","level":"high","reason":"block_device_fd","files_deleted":0}\n' \
+        "$_NOW" "$_FPID" "$_ESCF" >> "$LOG" 2>/dev/null
+    done <<< "$_FDHITS"
   fi
 
   # ---- 写状态文件 (单行 JSON, 供前端 15s 轮询读取) ----
