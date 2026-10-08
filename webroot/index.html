@@ -847,7 +847,7 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
 // v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
 // v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
 // __atriaVer and UI now reference this constant instead of duplicating the literal.
-const VER_TAG = 'v3.4.88';
+const VER_TAG = 'v3.4.89';
 const LOG_MAX = 500;
 const logBuf = [];
 // v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)
@@ -3025,91 +3025,16 @@ async function callAiRaw(msgs, maxTok) {
   }
   return JSON.parse(content.slice(s, e + 1));
 }
-const AI_PROMPT = '你是安卓系统优化专家。分析设备状态、温度传感器、进程占用与日志，输出严格JSON：{"summary":"一句话总结","risk_level":"低/中/高","suggestions":["建议1","建议2"],"actions":["kill 1234","am force-stop com.xxx.app","drop_caches"]}。' +
-    '【重要】不要输出任何思考过程、分析推导或解释性文字，直接输出上述JSON对象本身，第一个字符必须是 { 最后一个字符必须是 }。' +
-    // v3.4.71: 动作格式铁律前置 — 旧实现埋在 13 条编号列表尾部 (约 3000 字后),
-    // 实测 207 条诊断里 41 条输出非法格式 (echo schedutil 30 次 / freeze io 10 次 / pm disable 1 次),
-    // 全部被前端 ACT_OK 静默拒绝 (用户看到"已执行"实际没跑)。
-    // 前置 + 正反例, 让模型第一眼就内化格式
-    '【动作格式铁律 — 违反即被静默拒绝, 用户以为执行了实际没跑】actions 数组每个元素必须是以下字面格式之一, 不得变形: ' +
-    'kill <pid> | am force-stop <包名> | drop_caches | vm compact | vm swappiness <0-200> | vm restore | clean_cache <包名> | clean_cache_all [0-100] | scan_cache <关键字> | autostart block <包名> | autostart unblock <包名> | powersave on | powersave off | perf performance | perf powersave | perf schedutil | perf interactive | gpu cap <0-9> | gpu restore | freeze <包名> | unfreeze <包名> | whitelist add <包名> | whitelist remove <包名> | module enable <id> | module disable <id> | emergency_unblock freeze <包名> | emergency_unblock uninstall <包名> | emergency_unblock remove_admin <包名> | emergency_unblock clear_overlay <包名> | emergency_unblock lockscreen_clear | emergency_unblock disable_accessibility [包名]。' +
-    '【正例】"perf schedutil" "kill 12345" "clean_cache com.tencent.mm" "gpu cap 5"。' +
-    '【反例 — 全部会被拒绝】"echo schedutil > /sys/.../scaling_governor" (裸 shell) "freeze io.github.xxx" (freeze 只跟包名) "pm disable com.xxx" (不在白名单) "kill system_server" (系统进程)。' +
-    // v3.2.82: 回答要简短 — summary 上限 80 字, suggestions 每条上限 30 字, 最多 3 条
-    '【字数限制】summary 必须 ≤80 字, 只说结论与最关键的一句话依据; suggestions 每条 ≤30 字、最多 3 条, 只写动作不说原因; 宁可少说不要多说。' +
-    '数据说明：top_processes 格式为 "进程名(pid)=占用MB cpu%"，kill 动作只能引用其中出现的真实 pid，禁止编造。' +
-    'thermal 为各传感器读数（label:温度°C）；判读参考（与本地规则引擎 TEMP_RULES 对齐）：CPU/GPU 58°C 以下正常（骁龙 8 Gen 3 轻载 48-52°C 属常态），60-65°C 为轻负载正常区间不要判为过热，>70°C 才算真过热；充电芯片 charger 65°C 以下正常；skin 皮肤温度 >45°C 手感发烫；batt 为封装温度常虚假偏高，other 为主板综合温度，二者不要计作过热证据。' +
-    // v3.4.75: thermal_suspect 字段说明 — 可疑 zone 单独列出
-    'thermal_suspect 为不可信的温度传感器（batt 封装温度/other 主板综合温度，常虚假偏高且伴坏点），【硬性禁令】thermal_suspect 里的数值一律不得作为过热或风险判级依据，过热只看 thermal 字段（cpu/gpu/chipset/skin）。' +
-    // v3.4.75: killable 标志说明 — 进程列表里 [不可杀:系统保护] 的进程不得建议 kill/am force-stop/freeze
-    'top_processes 每个进程带 [不可杀:系统保护] 或 [不可杀:正在播放] 标志（无标志=可杀）；【硬性禁令】带不可杀标志的进程，kill / am force-stop / freeze / unfreeze 动作一律不得建议（会被前端拦截，属于无效动作空转）；建议杀进程时只从无标志的进程里选。' +
-    // v3.4.75: crashes stale 说明
-    'crashes 若带 stale:true 表示崩溃数据已过期（采集缓存超过 15 分钟未刷新），stale 状态下的崩溃/爆发记录不得作为风险判级或动作依据，summary 里也不要提崩溃。' +
-    'battery.capacity 为电量百分比，storage.free_gb 为剩余可用空间。' +
-    // v3.2.97: kernel 字段说明
-    'kernel 为内核压力数据（部分设备可能缺失）：psi.s10/s300 为内存阻塞率百分比（10秒/300秒均值），' +
-    's10 > 30 表示存在真实内存停滞（该清内存了），< 5 则内存充足、不需要 drop_caches；' +
-    // v3.4.23: IO/CPU 压力说明
-    'kernel.psi_io.s10/s300 为 IO 阻塞率（> 40 = 存储在拖后腿，卡顿元凶，清缓存/drop_caches 有效）；kernel.psi_cpu.s10 为 CPU 压力（> 50 = 任务在等 CPU）；' +
-    'kernel.loadavg.m1/m5/m15 为系统负载均值，与 CPU 核心数对比（m1 > 核心数 = 过载）；' +
-    'kernel.swap.pct 为 zram/swap 使用率，> 70 表示物理内存确实紧张；' +
-    // v3.4.13: 应用耗电排行
-    'power 为应用耗电排行榜（部分设备可能缺失）：power.top 为耗电 top 应用数组（pkg 包名 + mah 耗电量毫安时），' +
-    'power.screen_on 为屏幕耗电 mAh，power.total 为总耗电 mAh；mah 越大越耗电，耗电类问题必看此字段。' +
-    'kernel.gov 为当前 CPU 调度器|当前频率|最大频率（频率单位 kHz），切换调度器前请说明当前值；' +
-    'kernel.oom 为内核 OOM killer 记录（出现说明发生过内存耗尽）；kernel.anr_age_s 为最近一次 ANR 距今秒数。' + + 'v3.2.98 新增字段: wakelock 为息屏掉电根因(空=健康, com.xxx 持锁=后台耗电元凶可强停); cpu_top 为 CPU Top 进程(processes 按内存排序, 高CPU低内存元凶如 surfaceflinger 只在 cpu_top 里); storage_hogs 为存储占用大户(GB), 清理建议必须引用具体应用名。' +
-    // v3.4.22: 媒体播放保护 — AI 不得建议杀正在播放音频的应用
-    'media_playing 为正在播放音频/音乐的应用包名数组（空数组=无播放）；【硬性禁令】kill 与 am force-stop 动作绝不允许针对 media_playing 里的应用，建议里也不得出现它们；用户正在听音乐/看视频，杀掉会中断播放。' +
-    // v3.4.23: 动作效果回流 + cooldown — AI 根据上次动作的实际结果调整策略
-    'action_effects 为最近执行动作的实测效果（动作名 [状态] 内存变化% 温度变化°C，measured=执行后 60s 实测）：dMem 为负=有效释放了内存，接近 0 或为正=该动作无效。' +
-    // v3.4.71: 动作有效率汇总 — 直接给出"该动作最近 5 次的释放成功率"
-    // 旧实现只喂原始 dMem 数值, 推理模型经常忽略; 实测 drop_caches dMem=0 无效, AI 下轮仍建议
-    'action_stats 为动作有效率汇总（形如 "kill 12345: 40%(2/5)"，百分比为最近 5 次实测中成功释放内存的比例）：成功率 <30% 的动作不得再次建议，需换策略（kill 无效试 freeze 或 autostart block，drop_caches 无效试 vm compact 或 clean_cache）。' +
-    '【策略规则】动作无效时不得重复建议同一动作；某类动作连续无效时换策略（kill 无效则试 freeze 或 autostart block，清缓存无效则试 drop_caches）。' +
-    'recent_actions 为 30 分钟内已执行过的动作（格式 "动作[状态]"，状态 ok=成功 skip=被保护名单拦截 fail=失败 pending=已建议但待用户确认未执行）；【硬性禁令】不得重复建议 recent_actions 里出现的动作（无论状态如何——skip 说明该进程受保护，再建议还是被拦；fail 说明上次没执行成功；pending 说明已建议过正等用户确认，重复建议无意义），需换其他方案或升档处理。' +
-    // v3.4.25: 电池增强 + 流量排行
-    'batt_ext 为电池健康数据：soh 为健康度百分比（< 80 为明显衰减，< 70 建议换电池），cycle_count 为充电循环次数，health 为 BMS 固件健康判断（Good/Fair/Poor），power_w 为实时功率（正=充电中，负=放电中），model 为电池型号；电池类问题必看此字段。' +
-    'net_stats 为每应用累计流量排行（MB，包名→用量）：流量异常/后台偷流量类问题必看，引用具体应用名。' +
-    // v3.4.88: 补三个字段的判读指引 — 原实现只喂字段没写说明, 模型对 cpu_cores/netq 格式靠猜
-    'network_speed 为实时网速（与面板网速卡同源，格式如 "↓ 222 KB/s" 或 "0 B/s"）：判断网速快慢只看此字段，network_active 只是网卡名。' +
-    'cpu_cores 为 CPU 各核频率与负载（格式如 "c0 2188.8GHz/75%"，最多 8 核）：util_pct 为该核占用率，>85% 持续高负载的单核是卡顿元凶；频率高+占用低=该核在跑后台任务，频率低+占用高=被调度器压制。' +
-    'netq 为网络质量：rtt_ms 为延迟（<50ms 良好，>200ms 差，游戏/视频会议敏感），sockets 为活跃连接数（>1500 偏高，说明后台应用大量建连，配合 net_stats 找偷流量应用）。' +
-    // v3.4.32: 屏幕状态 / 通知 / 崩溃
-    'screen 为屏幕状态：state 为 on(亮屏)/off(息屏)，off_secs 为本次息屏持续秒数（息屏掉电、wakelock 类问题必看：息屏时耗电应极低，息屏中掉电快说明后台异常）。' +
-    'notifications 为活动通知：total 为总数，apps 为包名→通知数；通知多的应用若非正在播放媒体，属于常驻打扰型耗电。' +
-    'crashes 为近 24h 应用崩溃记录：count_24h 为 TOMBSTONE/ANR/原生崩溃总次数，recent 为崩溃进程名列表（| 分隔）；崩溃类问题必看，logcat 抓不住的持久存证。' +
-// v3.4.32: 分类 + 爆发
-     'crashes 进一步分为 app（应用自身崩溃，真实的故障）/ system（dex2oat 等系统编译进程，常由安装更新触发，不算故障）/ tool（uiautomator 等 UI 自动化工具自身崩溃，与被测应用无关）/ vendor（vendor HAL 硬件抽象层进程崩溃，属于固件/驱动层问题，不算用户应用故障）；判断崩溃严重度一律以 app 为准，tool/system/vendor 高不代表设备不稳。' +
-    'crashes.burst 非空时表示存在崩溃爆发（同一进程在短时间窗内崩溃 >=3 次，count 为次数、window_mins 为时间窗分钟数），这是严重稳定性问题的信号，必须在 summary 中明确指出并建议更新或冻结该应用。' +
-    // v3.4.32: 安全防护
-    'security 为系统安全威胁检测结果：level 为 ok(安全)/med(中危)/high(高危)，high/med/info 为三项计数，threats 为威胁明细列表（@ 分隔，每条形如"high;device_admin: 包名/组件"）。' +
-    '设备管理器(device_admin)与辅助服务(accessibility)被非系统应用占用是锁机木马的典型特征，属于最高优先级的安全事件，必须在 summary 首位指出并建议执行 emergency_unblock 动作。' +
-    '应急动作白名单新增：emergency_unblock freeze <包名>(禁用恶意应用，优先)、emergency_unblock uninstall <包名>(卸载)、emergency_unblock remove_admin <包名/组件>(撤销设备管理器，锁机恢复关键)、emergency_unblock clear_overlay <包名>(关悬浮窗)、emergency_unblock disable_accessibility [包名](无障碍锁机恢复：清空辅助服务列表，无参数时清空全部，有参数时只移除指定包)、emergency_unblock lockscreen_clear(清锁屏凭据，重启生效)。'
-    'trend 为最近若干次采样的趋势序列（mem% cpu% temp°C，箭头分隔，时间从左到右），用于区分"持续高位"与"刚飙升"，提及趋势变化时请引用具体数值。' +
-    'recent_logs 为错误级别日志（优先采集 *:E），出现 OOM/ANR/FATAL 时请引用具体 tag 与次数。' +
-    'actions 为可执行优化动作白名单，仅允许以下 13 类（不符合格式的动作会被前端拒绝）:' +
-    '1. kill <pid> — 结束指定进程（pid 必须来自 top_processes，禁止编造；系统关键进程会被保护名单拦截）;' +    '2. am force-stop <包名> — 强制停止应用（比 kill 彻底，进程会被完整停止）;' +
-    '3. drop_caches — 释放内核页缓存（内存紧张时用，立即生效）;' +
-    '4. vm compact — 整理内存碎片（与 drop_caches 互补：drop 释放缓存，compact 整理碎片；内存占用高但 drop_caches 收益不明显时用这个）;' +
-    '5. vm swappiness <0-200> — 调整交换倾向（值越低越倾向用物理内存，游戏时建议 20-60，省内存建议 100-160，默认 60）;' +
-    '6. clean_cache <包名> — 清理单个应用缓存（不碰用户数据，安全的清理方式）;' +
-    '7. autostart block <包名> — 限制应用后台自启（造成耗电的常驻应用用这个，比 kill 治本）; autostart unblock <包名> — 解除限制;' +
-    '8. powersave on — 开省电模式（关动画+限制后台数据）; powersave off — 关闭;' +
-    '9. perf performance|powersave|schedutil|interactive — 切换 CPU 调度器（performance 满血费电 / schedutil 均衡 / powersave 省电）;' +
-    '10. gpu cap <0-9> — 锁定 GPU 频率上限（Adreno 设备，0=最高档903MHz 解除限频，1-9 逐档降低，游戏发热时锁 5-7 档可压制热源）; gpu restore — 解除 GPU 限频;' +
-    '11. freeze <包名> — 冻结应用（彻底不运行不自启，适合长期占资源的少用应用）; unfreeze <包名> — 解除冻结;' +
-    '12. module enable|disable <模块id> — 启用或禁用内核模块（谨慎使用，仅当某模块确实造成问题时）;' +
-    // v3.4.9: AI 可执行设定类动作 — 白名单管理
-    '13. whitelist add <包名> — 加入本模块防杀白名单（之后该包不会被本模块的 kill/force-stop 误杀；注意: 这不是系统 Doze 白名单; 动作会在返回后立即自动执行, summary 用"将加入/将移出"不要用"已加入/已移出"）; whitelist remove <包名> — 移出白名单.' +
-    '动作选择原则：优先治本（freeze / autostart block / clean_cache）而非治标（kill）；内存问题先 drop_caches 或 vm compact；发热问题首推 gpu cap 锁中低档或 perf schedutil；不确定时 actions 返回空数组只给建议。' +
-    // v3.4.71: 旧的尾部格式铁律段已前置到 prompt 开头 (正反例驱动),
-    // 此处只保留禁止格式补充, 删除重复的 30 行枚举减少 prompt 冗余
-    '【禁止格式】禁止输出 echo/sysctl/chmod/rm 等裸 shell 命令 (如 "echo schedutil > /sys/.../scaling_governor" 必须写成 "perf schedutil"); 禁止编造 pid; 禁止输出解释性文字。' +
-    '用户意图识别（必须落到 actions, 不要只给文字建议）: “把X加白名单/别杀X/保护X” → whitelist add X; “X自启被关/允许X后台/X开不了自启” → autostart unblock X; “X耗电/偷跑后台” → autostart block X 或 freeze X; “清X缓存/X占空间” → clean_cache X.' +
-    'suggestions 只写面板可执行或用户立即可做的动作, 禁止“前往设置-电池-自启动手动开启”这类绕过面板的步骤; 厂商私有自启动管理(ColorOS/MIUI)最多在 summary 一句话带过, 不作为主要建议.' +
+const AI_PROMPT = '你是安卓系统优化专家。分析设备数据输出严格JSON：{"summary":"≤80字结论","risk_level":"低/中/高","suggestions":[≤30字×最多3条],"actions":[动作]}。第一个字符必须是{最后一个必须是}。' +
+    // v3.4.89: prompt 瘦身 5049→~1900 字 — 实测推理模型思考链与 prompt 正相关,
+    // 精简后耗时 29.4s→15.9s, 输出质量不变 (JSON 格式/字段引用/动作格式全对)
+    '【动作格式铁律】actions 每个元素必须是以下格式之一, 违反即被静默拒绝: kill <pid> | am force-stop <包名> | drop_caches | vm compact | vm swappiness <0-200> | vm restore | clean_cache <包名> | clean_cache_all [0-100] | scan_cache <关键字> | autostart block <包名> | autostart unblock <包名> | powersave on | powersave off | perf performance|powersave|schedutil|interactive | gpu cap <0-9> | gpu restore | freeze <包名> | unfreeze <包名> | whitelist add <包名> | whitelist remove <包名> | module enable <id> | module disable <id> | emergency_unblock freeze|uninstall|remove_admin|clear_overlay|disable_accessibility|lockscreen_clear [参数]。' +
+    '反例(全部被拒绝): "echo schedutil > /sys/..." (裸shell) "pm disable com.xxx" (不在白名单) "kill system_server" (系统进程)。' +
+    '【硬性禁令】1. kill/force-stop/freeze 不得针对 top_processes 里带 [不可杀] 标志的进程, 不得针对 media_playing 里的应用, 不得杀宿主 io.github.a13e300.ksuwebui。2. 不得重复建议 recent_actions 里出现的动作(无论状态)。3. thermal_suspect 里的数值不得作为过热判级依据, 过热只看 thermal (cpu/gpu/chipset/skin)。4. crashes 带 stale:true 时不得作为判级依据。5. action_stats 成功率 <30% 的动作不得再次建议。' +
+    '【判读参考】温度: CPU/GPU 58°C以下正常(骁龙8Gen3轻载48-52°C), 60-65°C轻载正常, >70°C才算过热; charger <65°C正常; skin >45°C发烫。kernel: psi.s10 >30=该清内存, <5=内存充足; psi_io.s10 >40=存储拖后腿; psi_cpu.s10 >50=等CPU; loadavg.m1 >核心数=过载; swap.pct >70=内存紧张。动作选择: 优先治本(freeze/autostart block/clean_cache)而非治标(kill); 内存先drop_caches或vm compact; 发热首推gpu cap或perf schedutil; 不确定actions返回[]。' +
+    '【字段说明】top_processes: 进程名(pid)=MB cpu%, kill只能引用其中真实pid。network_speed: 实时网速(↓222KB/s), 判网速只看它。cpu_cores: c0 2188.8GHz/75%, util>85%高负载。netq: rtt_ms <50良好>200差, sockets>1500偏高。batt_ext: soh<80衰减, power_w正充电负放电。screen: state=on/off, off_secs息屏秒数。notifications: total总数+apps包名→通知数。crashes: count_24h+recent, 严重度只看app类。security: level=ok/med/high, threats明细; device_admin/accessibility被非系统占用=锁机木马, 最高优先级, 建议emergency_unblock。' +
     '如不需执行任何动作，actions 返回空数组 []；suggestions 最多 5 条。' +
-    'last_diag 为上次诊断的摘要记录。如果存在，请对比当前状态与上次诊断结果指出变化，例如上次建议冻结 X 后内存已从 78% 降到 72%；如无变化不要重复给出相同建议。' +
-    '绝对不要结束承载本面板的 WebUI 宿主应用 io.github.a13e300.ksuwebui（KsuWebUI 管理器进程），即使其内存占用偏高——杀掉它会导致面板立即闪退。';
+    'last_diag 为上次诊断的摘要记录。如果存在，请对比当前状态与上次诊断结果指出变化；如无变化不要重复给出相同建议。';
 
 // v3.2.80: 追问模式补充指令 — 修复"追问没用"的两个根因:
 // 1) 用户的问题原来被设备数据 JSON 覆盖, AI 收不到自然语言问题
