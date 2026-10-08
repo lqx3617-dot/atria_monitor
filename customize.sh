@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.85 - 安装脚本
+# Atria Monitor v3.4.86 - 安装脚本
 MODDIR=${0%/*}
 
 # v3.4.85: 解锁旧版本 chattr +i 的静态文件 (service.sh 会锁它们, 不解锁更新会失败)

@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.85 - 广告屏蔽引擎 (systemless hosts)
+# Atria Monitor v3.4.86 - 广告屏蔽引擎 (systemless hosts)
 # 借鉴: bindhosts (mount --bind systemless) + AdAway (多源订阅) + anti-AD (规则源)
 # 原理: 把广告域名解析到 0.0.0.0, 在 DNS 解析层拦截, 系统级生效, 零常驻进程
 #
@@ -19,7 +19,7 @@
 #   /data/local/tmp/atria_ad_hosts.txt  生成的 hosts 文件
 #   /data/adb/atria_ad_state.json       状态文件
 
-VERSION="v3.4.85"
+VERSION="v3.4.86"
 ADB_DIR="/data/adb"
 SRC_FILE="$ADB_DIR/atria_ad_sources.conf"
 WL_FILE="$ADB_DIR/atria_ad_whitelist.conf"

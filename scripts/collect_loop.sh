@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.85 - 后台采集循环
+# Atria Monitor v3.4.86 - 后台采集循环
 # v3.2.36: 白名单图标后台刷新 (refresh_icons, 检测白名单 mtime 变化, 后台提取不阻塞采集)
 # v3.2.34: 补全 PATH (开机服务阶段 PATH 可能残缺)
 export PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:$PATH

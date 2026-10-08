@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.85 - 格机防护守护进程 (anti-wipe guard daemon)
+# Atria Monitor v3.4.86 - 格机防护守护进程 (anti-wipe guard daemon)
 # 实测依据: dumpsys device_policy 38ms/次, ps -A 880进程 50ms, grep /proc/cmdline 70ms
 # 拦截手段: pm disable-user --user 0 (实测有效, remove-active-admin 要求 testOnly 对木马无效)
 # v3.4.80: 触发拦截时彻底删除威胁文件 (APK + 数据目录), 断根防止复活
@@ -125,7 +125,7 @@ kill_proc_tree() {
 scan_procs() {
   # 输出: 命中条目列表 "PID<TAB>命令行" (每行一条), 供主循环逐条处置
   # 预筛: 子串匹配 (grep -l 对 \0 分隔内容也能子串匹配, 词边界不行)
-  grep -lE 'rm|mkfs|mke2fs|make_ext4fs|dd' /proc/[0-9]*/cmdline 2>/dev/null \
+  grep -lE 'rm|mkfs|mke2fs|make_ext4fs|dd|find' /proc/[0-9]*/cmdline 2>/dev/null \
     | while IFS= read -r _F; do
         [ -z "$_F" ] && continue
         _PID=$(printf '%s' "$_F" | sed 's|/proc/||; s|/cmdline||')
@@ -172,6 +172,17 @@ scan_procs() {
           if printf '%s' "$_CMD" | grep -qE '(if|of)=/dev/(block|mmcblk)'; then
             printf '%s\t%s\n' "$_PID" "$_CMD"
             continue
+          fi
+        fi
+        # 5) v3.4.86: find -delete / find -exec rm (软格机, 绕过 rm 命令检测)
+        #    实测 toybox find 与 busybox find 都支持 -delete, 现有规则零覆盖
+        #    匹配: find + -delete/-exec rm + 敏感目录 (/data /system /sdcard /storage)
+        if printf '%s' "$_CMD" | grep -qE '(^|[^a-zA-Z0-9])find( |$)'; then
+          if printf '%s' "$_CMD" | grep -qE '(-delete|-exec[[:space:]]+rm|-exec[[:space:]]+.*rm[[:space:]]|xargs[[:space:]]+rm)'; then
+            if printf '%s' "$_CMD" | grep -qE '(/data|/system|/sdcard|/storage)([^a-zA-Z0-9]|$)'; then
+              printf '%s\t%s\n' "$_PID" "$_CMD"
+              continue
+            fi
           fi
         fi
       done
@@ -287,10 +298,37 @@ while true; do
     done
   fi
 
-  # ---- v3.4.81: 进程命令行扫描 (sh 脚本格机检测) ----
-  # 实测 70ms, 与 dumpsys 38ms 串行总计 ~110ms, 3 秒周期内 CPU 占用 <4%
-  _HITS=$(scan_procs)
-  if [ -n "$_HITS" ]; then
+  # ---- v3.4.86: C 扫描器集成 (优先用 native 二进制, 回退 shell) ----
+  # atriia_guardd 一次遍历完成 scan_procs+scan_fds+scan_io, 实测 67ms (shell 版 600ms, 快 9 倍)
+  # 输出格式: "PID\tTYPE\tCMDLINE" (TYPE=wipe_cmd|block_fd)
+  # io 快照由 C 写 /data/local/tmp/atria_io_snap.txt, 差分逻辑保留 shell 版
+  _GUARDD=/data/adb/modules/atria_monitor/native/atria_guardd
+  _CHITS=''
+  if [ -x "$_GUARDD" ]; then
+    _CHITS=$(timeout 10 "$_GUARDD" 2>/dev/null)
+  fi
+  if [ -n "$_CHITS" ]; then
+    while IFS= read -r _CH; do
+      [ -z "$_CH" ] && continue
+      _CPID=$(printf '%s' "$_CH" | cut -f1)
+      _CTYPE=$(printf '%s' "$_CH" | cut -f2)
+      _CCMD=$(printf '%s' "$_CH" | cut -f3-)
+      case "$_CPID" in ''|*[!0-9]*) continue ;; esac
+      case "$_CPID" in $$|$PPID) continue ;; esac
+      [ -z "$_CCMD" ] && continue
+      kill_proc_tree "$_CPID"
+      _KILLED_THIS=$((_KILLED_THIS + 1))
+      _KILLPID="$_CPID"
+      _KILLCMD="$_CCMD"
+      _ESCC=$(json_esc "$(printf '%s' "$_CCMD" | cut -c1-100)")
+      printf '{"ts":%s,"pkg":"pid:%s","comp":"%s","action":"killed","level":"high","reason":"%s","files_deleted":0}\n' \
+        "$_NOW" "$_CPID" "$_ESCC" "$_CTYPE" >> "$LOG" 2>/dev/null
+    done <<< "$_CHITS"
+  fi
+  # shell 回退: C 二进制不存在时用原 scan_procs + scan_fds
+  if [ ! -x "$_GUARDD" ]; then
+    _HITS=$(scan_procs)
+    if [ -n "$_HITS" ]; then
     # 用 while read 按行迭代, 不用 for (for 按空格分词会把 CMD 拆开, 'sleep 30' 的 30 会被当 PID 误杀)
     # 用 here-string 不用管道 (管道 fork 子 shell, _KILLED_THIS 累加会丢失)
     while IFS= read -r _H; do
@@ -313,27 +351,27 @@ while true; do
       printf '{"ts":%s,"pkg":"pid:%s","comp":"%s","action":"killed","level":"high","reason":"wipe_command","files_deleted":0}\n' \
         "$_NOW" "$_HPID" "$_ESCC" >> "$LOG" 2>/dev/null
     done <<< "$_HITS"
-  fi
+    fi
 
-  # ---- v3.4.84: fd 块设备监控 (应用进程打开块设备 = 格机前兆) ----
-  # 与 scan_procs 复用同一处置链 (杀进程树 + 记日志), reason 区分
-  _FDHITS=$(scan_fds)
-  if [ -n "$_FDHITS" ]; then
-    while IFS= read -r _FH; do
-      [ -z "$_FH" ] && continue
-      _FPID=$(printf '%s' "$_FH" | cut -f1)
-      _FCMD=$(printf '%s' "$_FH" | cut -f2-)
-      case "$_FPID" in ''|*[!0-9]*) continue ;; esac
-      case "$_FPID" in $$|$PPID) continue ;; esac
-      [ -z "$_FCMD" ] && continue
-      kill_proc_tree "$_FPID"
-      _KILLED_THIS=$((_KILLED_THIS + 1))
-      _KILLPID="$_FPID"
-      _KILLCMD="$_FCMD"
-      _ESCF=$(json_esc "$(printf '%s' "$_FCMD" | cut -c1-100)")
-      printf '{"ts":%s,"pkg":"pid:%s","comp":"%s","action":"killed","level":"high","reason":"block_device_fd","files_deleted":0}\n' \
-        "$_NOW" "$_FPID" "$_ESCF" >> "$LOG" 2>/dev/null
-    done <<< "$_FDHITS"
+    # ---- v3.4.84: fd 块设备监控 (回退模式, C 二进制不存在时) ----
+    _FDHITS=$(scan_fds)
+    if [ -n "$_FDHITS" ]; then
+      while IFS= read -r _FH; do
+        [ -z "$_FH" ] && continue
+        _FPID=$(printf '%s' "$_FH" | cut -f1)
+        _FCMD=$(printf '%s' "$_FH" | cut -f2-)
+        case "$_FPID" in ''|*[!0-9]*) continue ;; esac
+        case "$_FPID" in $$|$PPID) continue ;; esac
+        [ -z "$_FCMD" ] && continue
+        kill_proc_tree "$_FPID"
+        _KILLED_THIS=$((_KILLED_THIS + 1))
+        _KILLPID="$_FPID"
+        _KILLCMD="$_FCMD"
+        _ESCF=$(json_esc "$(printf '%s' "$_FCMD" | cut -c1-100)")
+        printf '{"ts":%s,"pkg":"pid:%s","comp":"%s","action":"killed","level":"high","reason":"block_device_fd","files_deleted":0}\n' \
+          "$_NOW" "$_FPID" "$_ESCF" >> "$LOG" 2>/dev/null
+      done <<< "$_FDHITS"
+    fi
   fi
 
   # ---- v3.4.85: syscw 高频 IO 检测 (低频采样, 不拖慢主循环) ----
