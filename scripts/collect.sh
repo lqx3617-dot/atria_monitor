@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.34 - 状态采集
+# Atria Monitor v3.4.70 - 状态采集
 # v3.1.9 修复 (相对 v3.1.8):
 #   1) JSON 转义重写为逐字符判定: 反斜杠正确加倍, 引号转义, 控制字符转义或剔除
 #      (v3.1.8 的 gsub(/\\/, "\\", s) 是空操作 -> 含 \ 的日志行直接破坏整个 JSON)
@@ -520,5 +520,5 @@ case "$MODS" in *,) MODS=${MODS%,};; esac
 # v3.2.34: 清理本次临时目录
 [ -n "$TMPCLEAN" ] && rm -rf "$TMPCLEAN" 2>/dev/null
 
-printf '{"device_id":"%s","timestamp":%s,"mem":{"total_mb":%s,"used_mb":%s,"percent":%s},"cpu":{"percent":%s},"thermal":[%s],"battery":%s,"storage":[%s],"net":[%s],"processes":[%s],"logcat":[%s],"modules":[%s]}\n' \
-  "$(json_esc "$DEV")" "$(date +%s)" "$MEM_TOTAL" "$MEM_USED" "$MEM_PCT" "$CPU_PCT" "$THERMALS" "$BATT" "$STORAGE" "$NETDEVS" "$PROCS" "$LOGS" "$MODS"
+printf '{"device_id":"%s","timestamp":%s,"mem":{"total_mb":%s,"used_mb":%s,"avail_mb":%s,"percent":%s},"cpu":{"percent":%s},"thermal":[%s],"battery":%s,"storage":[%s],"net":[%s],"processes":[%s],"logcat":[%s],"modules":[%s]}\n' \
+  "$(json_esc "$DEV")" "$(date +%s)" "$MEM_TOTAL" "$MEM_USED" "$MEM_AVAIL" "$MEM_PCT" "$CPU_PCT" "$THERMALS" "$BATT" "$STORAGE" "$NETDEVS" "$PROCS" "$LOGS" "$MODS"

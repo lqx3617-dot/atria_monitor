@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.34 - 后台采集循环
+# Atria Monitor v3.4.70 - 后台采集循环
 # v3.2.36: 白名单图标后台刷新 (refresh_icons, 检测白名单 mtime 变化, 后台提取不阻塞采集)
 # v3.2.34: 补全 PATH (开机服务阶段 PATH 可能残缺)
 export PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:$PATH
@@ -211,32 +211,49 @@ scan_mods() {
     while IFS= read -r line; do
       case "$line" in name=*) name=${line#name=}; name=${name%$'\r'};; esac
     done < "$mp" 2>/dev/null
-    [ -e "$d/disable" ] && en=false
+    # v3.4.55 (M2): disable 与 remove 都视为禁用 — KernelSU/Magisk 的 remove 表示
+    # "下次启动移除", 旧实现只检测 disable, 标记 remove 的模块在面板上仍显示已启用
+    { [ -e "$d/disable" ] || [ -e "$d/remove" ]; } && en=false
     case "$name" in *'>'*|*'<'*|'&'*|*'"'*) name=$mid;; esac
     MODS_CACHE="$MODS_CACHE{\"name\":\"$name\",\"id\":\"$mid\",\"enabled\":$en},"
   done
   printf '%s' "$MODS_CACHE"
 }
 # v3.2.35: 注入 modules 字段 (C 采集器输出 "modules":[], 替换为真实列表)
+# v3.4.40: modules 是准静态数据 (模块列表极少变化), 改为写 sidecar 文件
+# 主 JSON 的 modules 恒为 [] (783B -> 2B), 只在内容真变时才更新 sidecar
+# 前端 poll 时合并: 主 JSON modules=[] 则读 sidecar 的 modules
+_M_SIDE_LAST=''
 inject_mods() {
   IN=$(cat)
   ML=$(scan_mods)
   if [ -n "$ML" ]; then
-    printf '%s' "$IN" | sed "s/\"modules\":\[\]/\"modules\":[${ML%,}]/"
-  else
-    printf '%s' "$IN"
+    # sidecar 去重: 内容没变就不写
+    if [ "$ML" != "$_M_SIDE_LAST" ]; then
+      printf '%s\n' "{\"modules\":[${ML%,}]}" > /data/local/tmp/atria_static_modules.json.new 2>/dev/null
+      [ -s /data/local/tmp/atria_static_modules.json.new ] && {
+        chmod 644 /data/local/tmp/atria_static_modules.json.new 2>/dev/null
+        mv /data/local/tmp/atria_static_modules.json.new /data/local/tmp/atria_static_modules.json 2>/dev/null
+      }
+      _M_SIDE_LAST="$ML"
+    fi
   fi
+  # 主 JSON 保持 modules:[] (由前端合并 sidecar)
+  printf '%s' "$IN"
 }
 # v3.2.35: C 采集器 storage 显示为 /data, 统一为 /storage/emulated (与 shell 版一致)
 # v3.2.92: inject cpu pct (top sees all procs in root shell domain, proot only 23)
 inject_cpu() {
-  # v3.2.92: 表头驱动定位 %CPU 列 (不同 top 版本列号不同, S[%CPU] 粘连时数值在下一字段)
-  RAW=$(top -n 1 -b 2>/dev/null)
-  HDR=$(printf '%s\n' "$RAW" | grep -n 'PID' | head -1 | cut -d: -f1)
-  [ -n "$HDR" ] || return 0
-  CPUCOL=$(printf '%s\n' "$RAW" | sed -n "${HDR}p" | awk '{for(i=1;i<=NF;i++) if($i ~ /%CPU/) {print i+1; exit}}')
-  [ -n "$CPUCOL" ] || return 0
-  TOPMAP=$(printf '%s\n' "$RAW" | sed -n "$((HDR+1)),\$p" | awk -v c="$CPUCOL" '{print $1 ":" $c}')
+  # v3.4.70: ps -A -o pid,pcpu,cmd (~17ms) 替代 top -n 1 -b (~413ms) — top 每周期占
+  # 采集工作量 20% (实测 891 进程 top 平均 413ms, ps 仅 17ms, sort 47ms)。
+  # ps -A 在 root 域同样能看到全部进程, 且输出列固定 (pid pcpu cmd), 无表头探测/
+  # S[%CPU] 粘连问题。语义差异: ps pcpu 是生命周期平均 (utime+stime)/elapsed,
+  # top -n 1 是瞬时 — 平均值更平稳, 前端进程列表不再每周期跳变 (减少 DOM class 切换
+  # 本身就是流畅度收益), cpu_procs top8 同样能定位持续高负载的卡顿元凶。
+  # v3.2.92 旧实现表头驱动定位逻辑 (HDR/CPUCOL/列粘连) 随 top 一并移除。
+  RAW=$(ps -A -o pid,pcpu,cmd 2>/dev/null)
+  case "$RAW" in *'PID'*) ;; *) return 0 ;; esac   # 无表头=异常输出, 不注入
+  TOPMAP=$(printf '%s\n' "$RAW" | sed -n '2,$p' | awk '{print $1 ":" $2}')
   [ -n "$TOPMAP" ] || return 0
   # v3.2.92: 单次 sed 批量替换 — 原实现对每个 pid 各 fork 一次 printf+sed
   # (top 约 870 进程 => 1740 次 fork, 实测单轮采集 89 秒, 周期从 4s 涨到 89s)
@@ -254,15 +271,20 @@ inject_cpu() {
   # v3.2.98 F2: CPU Top 进程段 - processes 按 rss 排序, 高CPU低内存进程 (surfaceflinger
   # 17%CPU/56MB) 在 60 条截断外, AI 看不到卡顿元凶. 用已采集的 $RAW 建 cpu_procs top8
   # 跳过 0% idle, 按CPU降序, 去重; 纯数字/字母下划线外的包名 sanitize 掉防注入
-  _CPTOP=$(printf '%s\n' "$RAW" | sed -n "$((HDR+1)),\$p" | awk -v c="$CPUCOL" '
+  # v3.4.70: 列号改 ps 格式 (pid=1, pcpu=2, name 从 3 起), 原 c+3 是 top 列偏移
+  _CPTOP=$(printf '%s\n' "$RAW" | sed -n '2,$p' | awk '
     {
-      pid = $1; cpu = $c
+      pid = $1; cpu = $2
       name = ""
-      for (i = c + 3; i <= NF; i++) { if (i > c + 3) name = name " "; name = name $i }
+      for (i = 3; i <= NF; i++) { if (i > 3) name = name " "; name = name $i }
       if (cpu + 0 <= 0.5) next
       if (seen[name]++) next
       gsub(/[^A-Za-z0-9._-]/, "", name)
       if (name == "") next
+      # v3.4.70: 剔除采样工具自身 — top 时代 top 自己会被列出 (top -n 1 -b 常驻 ~20%),
+      # ps 时代同理 (ps -A -o pid,pcpu,cmd 自身短命高 CPU, 每 6s 采样必然捕获一次),
+      # 误报为"卡顿元凶"推给 AI。已知的自身命令名直接跳过
+      if (name == "ps" || name == "top" || name == "awk" || name == "sed" || name == "sort" || name == "sh" || name == "grep") next
       printf "%s:%s:%.1f\n", name, pid, cpu + 0
     }' 2>/dev/null | sort -t: -k3 -rn | head -8)
   if [ -n "$_CPTOP" ]; then
@@ -285,6 +307,19 @@ inject_cpu_pipe() {
   DATA=$(cat)
   inject_cpu
   printf '%s' "$DATA"
+}
+
+# v3.4.70: 注入 avail_mb (内存可用量) — C 采集器二进制为编译时固定 JSON 无此字段, shell 层补
+# collect.sh 回退路径已自带 avail_mb; 本函数检测到已存在则跳过, 不重复注入
+inject_mem_avail() {
+  case "$DATA" in *'"avail_mb"':*) return 0 ;; esac
+  _AV=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo 2>/dev/null)
+  case "$_AV" in ''|*[!0-9]*) return 0 ;; esac
+  case "$DATA" in
+    *'"mem":{"total_mb":'*)
+      DATA=$(printf '%s' "$DATA" | sed "s|\"mem\":{\"total_mb\":|\"mem\":{\"avail_mb\":$_AV,\"total_mb\":|" 2>/dev/null)
+      ;;
+  esac
 }
 
 # v3.2.92: 注入错误级日志 — C 采集器 logcat 写死为空 (无 NDK 重编译), shell 层补
@@ -313,21 +348,14 @@ inject_logcat() {
   LOGRAW=$(logcat -d -t 100 *:E 2>/dev/null)
   [ -n "$LOGRAW" ] || LOGRAW=$(logcat -d -t 30 2>/dev/null)
   [ -n "$LOGRAW" ] || return 0
-  LOGJSON=$(printf '%s\n' "$LOGRAW" | awk '
-    {
-      gsub(/\\/, "\\\\\\\\"); gsub(/"/, "\\\"")
-      # v3.3.1: 跳过含 | 的日志行 — | 在 shell 层会截断 sed 命令 (脚本/管道内容, 日志价值低)
-      index($0, "|") && next
-      if (match($0, /^[0-9-]+ [0-9:.]+ +[0-9]+ +[0-9]+ +[A-Z] [^:]*:/)) {
-        head = substr($0, 1, RLENGTH)
-        msg = substr($0, RLENGTH + 1)
-        sub(/: *$/, "", head)
-        sub(/^ +/, "", msg)
-        tag = head
-        sub(/^[0-9-]+ [0-9:.]+ +[0-9]+ +[0-9]+ +[A-Z] +/, "", tag)
-        printf "{\"tag\":\"%s\",\"msg\":\"%s\"},\n", tag, msg
-      }
-    }' 2>/dev/null)
+  # v3.4.40: 修复 logcat 字段永远为空 — 旧实现把 awk 脚本内嵌在单引号里,
+  # gsub(/\\/) 的反斜杠在 shell -> awk 双层转义后层级错误, awk 静默语法错误,
+  # LOGJSON 恒空 -> AI 诊断的 recent_logs 拿不到任何日志 (从 v3.2.97 起空到现在)
+  # 改: awk 脚本独立成文件 logcat.awk, 用 -f 加载, 彻底绕开 shell 转义;
+  #     index()&&next 改标准 if 语法 (此 awk 实现不支持 && 做语句)
+  local AWK_F="$DIR/logcat.awk"
+  [ -f "$AWK_F" ] || AWK_F='/data/adb/modules/atria_monitor/scripts/logcat.awk'
+  LOGJSON=$(printf '%s\n' "$LOGRAW" | awk -f "$AWK_F" 2>/dev/null)
   [ -n "$LOGJSON" ] || return 0
   # v3.2.97: 去掉尾部逗号与换行; trim 后再判空 (全换行视为空)
   LOGJSON=$(printf '%s' "$LOGJSON" | tr -d '\n\r\t ' 2>/dev/null)
@@ -484,6 +512,7 @@ while true; do
     # v3.2.35: C 采集器无 modules 字段, shell 扫描补充 (带缓存)
     # v3.2.35: norm_storage 统一 C 采集器 storage 显示名, 再注入 modules
     [ -n "$DATA" ] && DATA=$(norm_storage "$DATA" | inject_mods)
+    inject_mem_avail
     inject_cpu
     inject_logcat
     inject_kernel
@@ -503,6 +532,11 @@ while true; do
     inject_crashes
     # v3.4.32: 系统安全防护 (SEC_TICK=30, 与通知同频; 威胁面: 设备管理器/辅助服务/通知监听/锁屏凭据/新增包)
     inject_security
+    # v3.4.40: 安装拦截兜底 (IW_TICK=60 / ~4分钟, install_watch 被杀或丢事件时补位)
+    inject_install_fallback
+    # v3.4.40: CPU 各核频率/利用率 + 网络质量 (差分算法, 60s/2min 周期)
+    inject_cpu_cores
+    inject_netq
     # v3.4.20: 应用名标签缓存 (耗电排行详情用), 每 300 采样周期刷一次 (~15分钟), 低频不当家
     LB_TICK=$((LB_TICK + 1))
     if [ "$LB_TICK" -ge 300 ]; then
@@ -513,6 +547,7 @@ while true; do
     DATA=$(sh "$DIR/collect.sh" 2>/dev/null)
     # v3.2.92: shell 回退分支也补注入 — C 采集器偶发无输出回退时, cpu_pct/logcat 不能丢
 if [ -n "$DATA" ]; then
+      inject_mem_avail
       inject_cpu
       inject_logcat
       inject_kernel
@@ -536,17 +571,21 @@ if [ -n "$DATA" ]; then
   fi
   if [ -n "$DATA" ]; then
     # v3.2.34: 非法 JSON (空字段) 视为无效, 不覆盖状态文件
-    # v3.2.97: 精确空字段检测 - 旧规则 *':,'* 会把 logcat msg 里的 ':,' ':}' 文本
+# v3.2.97: 精确空字段检测 - 旧规则 *':,'* 会把 logcat msg 里的 ':,' ':}' 文本
     # 误判为非法 JSON, 约 4% 采样被错杀 (AI 服务把脚本内容打印到 logcat 时必现)
     # 真正的空字段是键值位置: "key":, 或 "key":} — 用 grep -qE 精确匹配
-    if printf '%s' "$DATA" | grep -qE '"[^"]*":\s*([,}]|$)' 2>/dev/null; then
+    # v3.4.62: BUG 修复 — toybox grep -E 不支持 \s 转义 (bad regex: trailing backslash),
+    # 导致本检测永久失效, 残缺 JSON 直接落盘。改用 POSIX 字符类 [[:space:]]
+    if printf '%s' "$DATA" | grep -qE '"[^"]*":[[:space:]]*([,}]|$)' 2>/dev/null; then
       DATA=''
     fi
     [ -n "$DATA" ] || plog 'WARN 采集含空字段, 已丢弃'
-    _O=$(printf '%s' "$DATA" | tr -cd '{' | wc -c)
-    _C=$(printf '%s' "$DATA" | tr -cd '}' | wc -c)
-    if [ "$_O" != "$_C" ]; then
-      plog "WARN 括号不平衡 open=$_O close=$_C, 已丢弃"
+    # v3.4.62: 字符串感知的括号校验 — 旧实现 tr -cd '{'|wc -c 把 JSON 字符串值里的
+    # 括号也算进去, logcat 消息常含 {xxx}, 字符串内括号本就合法, 约 1.25% 采样被误杀
+    _BB=$(printf '%s\n' "$DATA" | awk -f "$DIR/brace_bal.awk" 2>/dev/null)
+    case "$_BB" in ''|*[!0-9]*) _BB=0;; esac   # awk 不可用时放行, 不卡采集
+    if [ "$_BB" != "0" ]; then
+      plog "WARN 括号不平衡 bal=$_BB, 已丢弃"
       DATA=''
     fi
     case "$DATA" in

@@ -18,6 +18,8 @@
   --brd: rgba(148, 163, 184, 0.14);
   --card: linear-gradient(160deg, rgba(30, 41, 59, 0.78), rgba(15, 23, 42, 0.55));
   --purple: #38bdf8;  /* v3.2.44: accent lock - single cyan family, purple retired */
+  --navbar-h: 62px;  /* v3.4.43: 底部导航栏高度 */
+  --header-h: 54px;  /* v3.4.45: 顶部吸顶栏高度 (对齐 nav-item) */
 }
 html { background: var(--bg); }
 /* v3.2.44: grain layer - subtle SVG noise kills the flat plastic look */
@@ -39,19 +41,40 @@ body {
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #334155; border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-.wrap { max-width: 920px; margin: 0 auto; }
-h1 {
-  font-size: clamp(24px, 4.2vw, 34px); margin-bottom: 18px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.06;
-  /* v3.2.85: gradient-text 已删 — 改纯色, 见 tail 新规则 */
+.wrap { max-width: 920px; margin: 0 auto; padding-bottom: calc(var(--navbar-h, 62px) + max(16px, env(safe-area-inset-bottom))); padding-top: calc(var(--header-h, 54px) + max(12px, env(safe-area-inset-top)));
+  padding-left: 16px; padding-right: 16px; }  /* v3.4.46: 主内容区与吸顶栏文字左右对齐 (窄屏 16px) */
+/* v3.4.46: 吸顶栏文字与主内容区左右对齐 — 三档断点同步 .wrap 的 max-width */
+@media (min-width: 1024px) {
+  .brand { padding-left: max(16px, calc((100vw - 1400px) / 2 + 16px)); padding-right: max(16px, calc((100vw - 1400px) / 2 + 16px)); }
 }
+@media (min-width: 1700px) {
+  .brand { padding-left: max(16px, calc((100vw - 1640px) / 2 + 16px)); padding-right: max(16px, calc((100vw - 1640px) / 2 + 16px)); }
+}
+h1.brand { font-size: 18px; margin-bottom: 0; }  /* v3.4.45: 吸顶后的标题尺寸 */
 .sub { font-size: 13px; color: var(--dim); font-weight: normal; margin-left: 8px; -webkit-text-fill-color: var(--dim); }
 /* v3.3.3: 顶部品牌区 — app-icon 徽标 + 标题收紧 + 设备信息 chip */
-.brand { display: flex; align-items: center; gap: 12px; }
+/* v3.4.45: 顶部改为固定吸顶框架 (同 navbar 风格: 毛玻璃 + 分隔线 + 安全区) */
+.brand {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 90;
+  display: flex; align-items: center; gap: 10px;
+  min-height: 54px;  /* v3.4.45: 高度对齐 nav-item 54px */
+  padding: 10px max(16px, calc((100vw - 920px) / 2 + 16px));  /* v3.4.46: +16 对齐 .wrap 内容 (margin+padding) */
+  padding-top: calc(10px + env(safe-area-inset-top));
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+  /* v3.4.49: 滚动穿透兜底 — backdrop-filter 在滚动合成延迟时, 底下曲线/卡片发光条会透到顶栏数字上。
+     不透明分层打底: 主背景提到 0.96, 视觉仍是毛玻璃观感, 但不再有穿透残影 */
+  background: rgba(10, 15, 30, 0.96);
+}
+/* v3.4.45: 实现说明 - .brand 是 .wrap 内的元素, position:fixed 后脱离文档流;
+   父级 .wrap 已用 padding-top 让出顶部空间, 内容不会被遮 */
 .brand-badge {
-  flex: none; width: 40px; height: 40px; border-radius: 11px;
+  flex: none; width: 34px; height: 34px; border-radius: 10px;
   display: inline-flex; align-items: center; justify-content: center;
   background: linear-gradient(150deg, #0284c7, #38bdf8 62%, #0ea5e9);
-  box-shadow: 0 6px 18px rgba(14, 165, 233, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 .brand-badge .ic { width: 21px; height: 21px; margin: 0; vertical-align: initial; color: #f0f9ff; }
 .brand-title { letter-spacing: -0.03em; }
@@ -109,6 +132,8 @@ h1 .sub {
 @keyframes numPulse { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
 .top-actions { float: right; display: flex; gap: 6px; }
 .top-btn { padding: 7px 11px; font-size: 14px; }
+/* v3.4.45: 吸顶栏内的按钮收紧 */
+.brand .top-btn { padding: 6px 9px; font-size: 13px; }
 .detail { color: var(--dim); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .red { color: var(--bad); }
 .yellow { color: var(--warn); }
@@ -198,7 +223,7 @@ button:focus-visible, .btn:focus-visible, [type=checkbox]:focus-visible { outlin
 .btn-ghost { background: rgba(51, 65, 85, 0.55); color: #e2e8f0; border: 1px solid var(--brd); }
 input[type="checkbox"] { accent-color: var(--acc); width: 16px; height: 16px; cursor: pointer; }
 .modal {
-  position: fixed; inset: 0; z-index: 99;
+  position: fixed; inset: 0; z-index: 300;   /* v3.4.44: 300 > navbar 100 > 弹层 210, 弹窗不再被导航栏遮挡 */
   background: rgba(2, 6, 23, 0.82);
   align-items: center; justify-content: center;
 }
@@ -209,6 +234,11 @@ input[type="checkbox"] { accent-color: var(--acc); width: 16px; height: 16px; cu
   border: 1px solid var(--brd);
   border-radius: 18px; padding: 22px;
   width: min(420px, 92vw);
+  /* v3.4.44: 限高 + 内部滚动 — 长内容详情不再被底部导航栏遮挡 */
+  max-height: min(78vh, 640px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   box-shadow: 0 16px 32px rgba(2, 6, 23, 0.5), inset 0 1px 0 rgba(148, 163, 184, 0.1);
   animation: pop 0.22s cubic-bezier(0.2, 1.2, 0.4, 1);
 }
@@ -234,6 +264,10 @@ input[type="checkbox"] { accent-color: var(--acc); width: 16px; height: 16px; cu
 .dm-k { color: #94a3b8; flex-shrink: 0; }
 .dm-v { color: #e2e8f0; text-align: right; word-break: break-all; }
 .dm-sub { margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(148, 163, 184, 0.2); color: #64748b; font-size: 11px; line-height: 1.7; }
+/* v3.4.66: 弹窗内广告屏蔽按钮 */
+.dm-act { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.dm-act .btn { padding: 7px 14px; font-size: 13px; }
+.dm-msg { margin-top: 10px; font-size: 11px; color: #94a3b8; line-height: 1.6; word-break: break-all; }
 
 .grid10 { display: grid; gap: 10px; }
   /* v3.2.34: 后台进程列表 */
@@ -314,6 +348,7 @@ h2 .ic { width:16px; height:16px; vertical-align:-0.24em; margin-right:6px; }
 h2.u-h2-alert::before { background: rgba(248, 113, 113, 0.55); }
 h2.u-h2-ok::before { background: rgba(74, 222, 128, 0.55); }
 h2.u-h2-neutral::before { background: rgba(148, 163, 184, 0.5); }
+h2.u-h2-acc::before { background: rgba(56, 189, 248, 0.6); }  /* v3.4.48: AI 诊断 - 品牌主色, 标记智能能力 */
 /* v3.2.86: h1 去渐变 — gradient-text 是 AI tell, 改纯色+字重对比 */
 h1 { background: none; -webkit-background-clip: initial; background-clip: initial;
   color: var(--txt); -webkit-text-fill-color: var(--txt); }
@@ -326,15 +361,17 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
   .proc { gap: 6px; padding: 7px 8px; }
   .proc .p-pid { width: 42px; }
   .proc .p-stat { display: none; }             /* 极窄屏隐藏 S/R 状态 chip, 名字优先 */
-  #aiChatBar input.u-ipt-ai { min-width: 0; }  /* 320px 屏输入框不再溢出 */
+  #aiTplBar input.u-ipt-ai { min-width: 0; }  /* v3.4.53: 选择器随容器迁移, 320px 屏输入框不再溢出 */
   .brand { gap: 8px; }
   .brand-title { font-size: 18px; }
   .top-btn { padding: 6px 8px; }
 }
 /* 响应式: 窄屏核心卡不变, mini 卡压缩 */
 @media (max-width: 560px) {
-  .brand { flex-wrap: wrap; row-gap: 6px; }    /* 顶部品牌区窄屏折行, 不挤压 */
-}
+  .brand { flex-wrap: nowrap; row-gap: 6px; }    /* v3.4.45: 吸顶栏固定不折行, 设备 chip 超长省略 */
+  .brand .sub { max-width: 30vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* v3.4.53: 修复历史括号 bug — v3.4.45 此处 } 提前关闭 @media, 致 364-366 三行卡片字体规则
+     泄漏为全局 + 出现裸 } 浏览器中止样式表解析, #aiTplBar.u-tplbar 等后续规则全部丢失 */
   .card.u-core .value { font-size: 32px; }
   .card.u-sec .value { font-size: 22px; }
   .card.u-mini .value { font-size: 17px; }
@@ -350,13 +387,13 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
   color: #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 13px;
   outline: none; cursor: pointer; transition: border-color 0.15s ease; }
 #aiTplBar select.u-sel:focus { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18); }
-/* 追问条: 初始隐藏, showChatBar() 设 inline display=flex 覆盖 */
-#aiChatBar.u-chatbar { display: none; margin-top: 10px; align-items: center; gap: 8px; flex-wrap: wrap; }
-#aiChatBar input.u-ipt-ai { flex: 1; min-width: 180px; max-width: 420px;
+/* v3.4.53: 追问条并入场景行 — 输入框直接放在 #aiTplBar 内, 不再是独立容器 */
+#aiTplBar input.u-ipt-ai { flex: 1; min-width: 120px; max-width: 420px;
   background: rgba(10, 15, 30, 0.7); color: var(--txt);
-  border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px;
-  padding: 9px 12px; font-size: 13px; outline: none; transition: border-color 0.15s ease; }
-#aiChatBar input.u-ipt-ai:focus { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18); }
+  border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px;
+  padding: 6px 10px; font-size: 12px; outline: none; transition: border-color 0.15s ease; }
+#aiTplBar input.u-ipt-ai:focus { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18); }
+#aiTplBar .u-tpl-sep { width: 1px; height: 20px; background: var(--brd); flex: none; margin: 0 2px; }
 /* 诊断结果 — 风险等级 chip (仅 #aiContent, 告警列表不受影响) */
 #aiContent .a-title { display: inline-block; padding: 3px 12px; border-radius: 999px;
   font-size: 13px; font-weight: 700; background: rgba(148, 163, 184, 0.12); }
@@ -415,7 +452,7 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
   border-top: 5px solid #7dd3fc; margin-left: 2px;
 }
 #aiTplBar button.u-sel-btn[aria-expanded="true"] .u-sel-caret { transform: rotate(180deg); }
-/* 弹层: 页面内 absolute 浮层, 深色卡片, z-index 200 > modal 99 */
+/* 弹层: 页面内 absolute 浮层, 深色卡片, z-index 200 < modal 300, 盖住面板内容但低于详情弹窗 */
 #aiTplPop {
   position: fixed; z-index: 200; min-width: 200px;
   max-height: 320px; overflow-y: auto;
@@ -449,14 +486,17 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
   position: fixed; inset: 0; z-index: 199;
   background: transparent;
 }
-/* v3.3.8: 模型弹层遮罩 — 透明可点关闭, z 209 在弹层(210)下、modal(99)上 */
+/* v3.3.8: 模型弹层遮罩 — 透明可点关闭, z 209 在弹层(210)下、modal(300)上 */
+/* v3.4.57: 同步上移 209 → 409 (在弹层 410 下, 仍可点空白关闭) */
 #aiCfgMask {
-  position: fixed; inset: 0; z-index: 209;
+  position: fixed; inset: 0; z-index: 409;
   background: transparent;
 }
 /* v3.3.8: 模型名自定义弹层 — 同 aiTplPop 模式, 绕开原生 select 白色弹层 */
+/* v3.4.57: z-index 210 → 410 — 触发源在 .modal (z-index 300) 内, 210 被弹窗盖住
+   导致模型列表完全点不到 ("自动获取切换不了模型" 的真因); 遮罩 209 → 409 同步上移 */
 #aiCfgPop {
-  position: fixed; z-index: 210; min-width: 220px; max-width: 360px;
+  position: fixed; z-index: 410; min-width: 220px; max-width: 360px;
   max-height: 320px; overflow-y: auto;
   background: linear-gradient(165deg, rgba(30, 41, 59, 0.985), rgba(15, 23, 42, 0.97));
   border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 12px;
@@ -498,12 +538,47 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
 }
 #cfgModelBtn[aria-expanded="true"] .u-sel-caret { transform: rotate(180deg); }
 #cfgModelBtn .m-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ===== v3.4.43: 三面板切换 ===== */
+.page { display: none; }
+.page.active { display: block; animation: pageIn 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes pageIn { from { opacity: 0.35; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .page.active { animation: none; } }
+
+/* ===== v3.4.43: 底部导航栏 (自 panel2_preview.html 移植) ===== */
+.navbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 100;
+  display: flex; justify-content: space-around; align-items: stretch;
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -8px 24px rgba(2, 6, 23, 0.4);
+  /* v3.4.49: 同 .brand — 底栏也提高不透明度, 滚动时进程列表/曲线不再透到导航图标上 */
+  background: rgba(10, 15, 30, 0.96); }
+.nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 10px 4px 8px; cursor: pointer; color: #64748b; transition: color 0.2s ease; position: relative;
+  min-height: 54px; background: none; border: none; font-family: inherit; }
+.nav-item svg { width: 22px; height: 22px; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.nav-item span { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
+.nav-item.active { color: var(--acc); }
+.nav-item.active svg { transform: translateY(-2px) scale(1.08); }
+.nav-item.active::before { content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 26px; height: 3px; border-radius: 0 0 3px 3px; background: var(--acc);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6); }
+.nav-item:active { background: rgba(56, 189, 248, 0.05); }
+@media (prefers-reduced-motion: reduce) {
+  .nav-item svg { transition: none; }
+  .nav-item.active svg { transform: none; }
+}
+
+/* v3.4.43: focus 光环 — 触摸点击无框, 仅键盘焦点显示柔和光环 (自 panel2_preview 移植) */
+button:focus, .nav-item:focus { outline: none; }
+button:focus-visible, .nav-item:focus-visible { outline: none;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4), 0 0 12px rgba(56, 189, 248, 0.12); }
 </style>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
 <!-- v3.2.48: inline SVG line icons - replace emoji, CSS-colored via currentColor -->
-<symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></symbol>
 <symbol id="i-log" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><line x1="8.5" y1="12" x2="15.5" y2="12"/><line x1="8.5" y1="15.5" x2="15.5" y2="15.5"/><line x1="8.5" y1="19" x2="12.5" y2="19"/></symbol>
 <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M4.2 12H1.6M22.4 12h-2.6M6.3 6.3l1.8 1.8M15.9 15.9l1.8 1.8M17.7 6.3l-1.8 1.8M8.1 15.9l-1.8 1.8"/></symbol>
 <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="20.5" x2="20.5" y2="20.5"/><polyline points="6,16 10,11 14,14 19,7"/></symbol>
@@ -511,6 +586,8 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
 <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9.5 16.5H2.5z"/><line x1="12" y1="10" x2="12" y2="14.5"/><circle cx="12" cy="17.2" r=".4" fill="currentColor" stroke="none"/></symbol>
 <symbol id="i-module" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.5"/></symbol>
 <symbol id="i-process" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4.5" y1="7" x2="19.5" y2="7"/><circle cx="9" cy="7" r="2.2"/><line x1="4.5" y1="14" x2="19.5" y2="14"/><circle cx="15" cy="14" r="2.2"/><line x1="4.5" y1="20" x2="19.5" y2="20"/><circle cx="11" cy="20" r="2.2"/></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 18a9 9 0 1 1 17 0"/><line x1="2.5" y1="18" x2="21.5" y2="18"/><line x1="12" y1="18" x2="16.5" y2="10.5"/><circle cx="12" cy="18" r="1.4" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-gauge-badge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5a8 8 0 1 1 16 0"/><line x1="12" y1="17.5" x2="16" y2="11"/><circle cx="12" cy="17.5" r="1.5" fill="currentColor" stroke="none"/></symbol>
 <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="20.5" y2="20.5"/></symbol>
 <symbol id="i-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="15.5,8.5 11,11 8.5,15.5 13,13"/></symbol>
 <symbol id="i-broom" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 3l-7.5 7.5M8.5 12.5l3 3M6 15.5L3.5 21l5.5-2.5"/><path d="M11.5 9l3.5 3.5"/></symbol>
@@ -523,7 +600,10 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
 <symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="20"/><line x1="6" y1="8" x2="18" y2="8"/><path d="M3.5 8L6 14.5h-5z"/><path d="M18.5 8L21 14.5h-5z"/></symbol>
 </svg>
 <div class="wrap">
-  <h1 class="brand"><span class="brand-badge"><svg class="ic"><use href="#i-phone"/></svg></span><span class="brand-title">Atria Monitor</span><span id="dev" class="sub"></span><span class="top-actions"><button id="logBtn" class="btn btn-ghost top-btn" title="查看运行日志"><svg class="ic"><use href="#i-log"/></svg></button><button id="settingsBtn" class="btn btn-ghost top-btn" title="设置"><svg class="ic"><use href="#i-settings"/></svg></button></span></h1>
+  <h1 class="brand"><span class="brand-badge"><svg class="ic"><use href="#i-gauge-badge"/></svg></span><span class="brand-title">Atria Monitor</span><span id="dev" class="sub"></span><span class="top-actions"><button id="logBtn" class="btn btn-ghost top-btn" title="查看运行日志"><svg class="ic"><use href="#i-log"/></svg></button><button id="settingsBtn" class="btn btn-ghost top-btn" title="设置"><svg class="ic"><use href="#i-settings"/></svg></button></span></h1>
+
+  <!-- v3.4.43: 三面板拆分 — 第1面板: 4核心卡 + 趋势 + AI诊断 + 告警 -->
+  <div class="page active" id="page-overview">
   <div class="cards">
     <div class="card u-core" data-card="mem">
       <span class="dot" id="memDot" style="color:#4ade80;background:#4ade80"></span>
@@ -553,6 +633,72 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
       <div class="bar"><div id="battBar" class="bar-fill" style="width:0%;background:#4ade80"></div></div>
       <div id="battDetail" class="detail"></div>
     </div>
+  </div><!-- /cards -->
+
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+      <span style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:6px"><svg class="ic"><use href="#i-chart"/></svg>趋势</span>
+      <div id="histRange" style="display:flex;gap:4px">
+        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="0">实时</button>
+        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="1">1h</button>
+        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="6">6h</button>
+        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="24">24h</button>
+      </div>
+    </div>
+    <canvas id="chart" height="120"></canvas>
+    <!-- v3.2.46: 图例 - 三条曲线含义与量程说明 (纯 HTML/CSS, 不动绘制逻辑) -->
+    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:6px;font-size:11px;color:#94a3b8">
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:3px;border-radius:2px;background:#38bdf8"></span>内存占用 (%)</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:3px;border-radius:2px;background:#f59e0b"></span>CPU 占用 (%)</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #f87171"></span>温度 (℃, 0–80 独立量程)</span>
+      <!-- v3.4.32: 电池曲线 (0-100 与内存同量程) -->
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #4ade80"></span>电池电量 (%)</span>
+    </div>
+    <div id="histInfo" style="font-size:11px;color:#64748b;margin-top:4px"></div>
+  </div>
+
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <h2 class="u-h2-acc" style="margin:0"><svg class="ic"><use href="#i-ai"/></svg>AI 诊断</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:4px">
+          <input type="checkbox" id="aiAuto"> 自动分析
+        </label>
+<button id="optBtn" class="btn btn-opt"><svg class="ic"><use href="#i-bolt"/></svg>一键优化</button>
+        <button id="aiBtn" class="btn btn-ai"><svg class="ic"><use href="#i-search"/></svg>立即诊断</button>
+        <button id="localDiagBtn" class="btn btn-ghost"><svg class="ic"><use href="#i-compass"/></svg>本地诊断</button>
+        <!-- v3.2.86: 次要操作收纳 — 5 个 ghost 收成一行小号, 与主操作分层 -->
+        <span class="u-more">
+          <button id="scanCacheBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-broom"/></svg>扫缓存</button>
+          <button id="powersaveBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-battery"/></svg>省电模式</button>
+          <button id="perfBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-rocket"/></svg>性能模式</button>
+          <button id="aiCfgBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-settings"/></svg>配置</button>
+        </span>
+      </div>
+    </div>
+<div id="aiResult" style="margin-top:12px">
+      <!-- v3.2.71: 多轮追问 -->
+            <!-- v3.2.71: 场景化诊断模板 -->
+      <!-- v3.4.53: 追问条并入场景行并排 — 两个单行控件合为一行, 省一整行纵向空间 -->
+      <div id="aiTplBar" class="u-tplbar">
+        <span class="u-tpl-lab">诊断场景</span>
+        <button id="aiTplSel" class="u-sel-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+          <span id="aiTplSelLabel">通用</span><span class="u-sel-caret"></span>
+        </button>
+        <span class="u-tpl-sep"></span>
+        <input id="aiChatInput" class="u-ipt-ai" type="text" placeholder="追问：为什么建议这个？ / 上次的建议有效吗？">
+        <button id="aiChatBtn" class="btn btn-ai" style="padding:6px 12px;font-size:12px">追问</button>
+      </div>
+      <div id="aiContent"><div class="empty">未诊断，点击上方按钮开始（需先配置 API key）</div></div>
+    </div>
+  </div>
+
+  <h2 class="u-h2-alert"><svg class="ic"><use href="#i-alert"/></svg>告警<span id="alertHistBadge" style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:6px"></span></h2>
+  <div id="alerts" class="card" data-card="alert" style="padding:8px 12px;cursor:pointer"><div class="empty">暂无告警</div></div>
+  </div><!-- /page-overview -->
+  <!-- v3.4.43: 第2面板: 8张次要卡 + 模块状态 -->
+  <div class="page" id="page-detail">
+  <div class="cards">
     <div class="card u-mini" data-card="store">
       <span class="dot" id="storeDot" style="color:#4ade80;background:#4ade80"></span>
       <div class="label">存储 /data</div>
@@ -583,78 +729,68 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
       <div id="pwList" style="font-size:11px;color:#94a3b8;line-height:1.7;margin-top:2px"></div>
     </div>
     <!-- v3.4.32: 系统状态 — 息屏/通知/崩溃 (点击看详情) -->
+    <div class="card u-mini" data-card="inst">
+      <span class="dot" id="instDot" style="color:#34d399;background:#34d399"></span>
+      <div class="label">安装拦截</div>
+      <div id="instVal" class="value" style="color:#34d399">--</div>
+      <div id="instDetail" class="detail">监听新装应用</div>
+    </div>
+    <div class="card u-mini" data-card="cpucores">
+      <span class="dot" id="ccDot" style="color:#f59e0b;background:#f59e0b"></span>
+      <div class="label">CPU 核心</div>
+      <div id="ccVal" class="value" style="color:#f59e0b">--</div>
+      <div id="ccDetail" class="detail">大小核频率/负载</div>
+    </div>
+    <div class="card u-mini" data-card="netq">
+      <span class="dot" id="nqDot" style="color:#38bdf8;background:#38bdf8"></span>
+      <div class="label">网络质量</div>
+      <div id="nqVal" class="value" style="color:#38bdf8">--</div>
+      <div id="nqDetail" class="detail">延迟/流量/连接</div>
+    </div>
     <div class="card u-mini" data-card="sys">
       <span class="dot" id="sysDot" style="color:#a78bfa;background:#a78bfa"></span>
       <div class="label">系统状态</div>
       <div id="sysVal" class="value" style="color:#a78bfa">--</div>
       <div id="sysDetail" class="detail">息屏 · 通知 · 崩溃</div>
     </div>
-  </div>
-  <div class="box">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px">
-      <span style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:6px"><svg class="ic"><use href="#i-chart"/></svg>趋势</span>
-      <div id="histRange" style="display:flex;gap:4px">
-        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="0">实时</button>
-        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="1">1h</button>
-        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="6">6h</button>
-        <button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" data-hist="24">24h</button>
-      </div>
+    <!-- v3.4.53: 广告屏蔽 — systemless hosts, 借鉴 bindhosts/AdAway/anti-AD -->
+    <div class="card u-mini" data-card="ad">
+      <span class="dot" id="adDot" style="color:#64748b;background:#64748b"></span>
+      <div class="label">广告屏蔽</div>
+      <div id="adVal" class="value" style="color:#64748b">未启用</div>
+      <div id="adDetail" class="detail">点击启用 systemless hosts</div>
     </div>
-    <canvas id="chart" height="120"></canvas>
-    <!-- v3.2.46: 图例 - 三条曲线含义与量程说明 (纯 HTML/CSS, 不动绘制逻辑) -->
-    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:6px;font-size:11px;color:#94a3b8">
-      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:3px;border-radius:2px;background:#38bdf8"></span>内存占用 (%)</span>
-      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:3px;border-radius:2px;background:#f59e0b"></span>CPU 占用 (%)</span>
-      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #f87171"></span>温度 (℃, 0–80 独立量程)</span>
-      <!-- v3.4.32: 电池曲线 (0-100 与内存同量程) -->
-      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #4ade80"></span>电池电量 (%)</span>
-    </div>
-    <div id="histInfo" style="font-size:11px;color:#64748b;margin-top:4px"></div>
-  </div>
+  </div><!-- /cards -->
 
-  <div class="box">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <h2 style="margin:0"><svg class="ic"><use href="#i-ai"/></svg>AI 诊断</h2>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <label style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:4px">
-          <input type="checkbox" id="aiAuto"> 自动分析
-        </label>
-<button id="optBtn" class="btn btn-opt"><svg class="ic"><use href="#i-bolt"/></svg>一键优化</button>
-        <button id="aiBtn" class="btn btn-ai"><svg class="ic"><use href="#i-search"/></svg>立即诊断</button>
-        <button id="localDiagBtn" class="btn btn-ghost"><svg class="ic"><use href="#i-compass"/></svg>本地诊断</button>
-        <!-- v3.2.86: 次要操作收纳 — 5 个 ghost 收成一行小号, 与主操作分层 -->
-        <span class="u-more">
-          <button id="scanCacheBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-broom"/></svg>扫缓存</button>
-          <button id="powersaveBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-battery"/></svg>省电模式</button>
-          <button id="perfBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-rocket"/></svg>性能模式</button>
-          <button id="aiCfgBtn" class="btn btn-ghost u-mini-btn"><svg class="ic"><use href="#i-settings"/></svg>配置</button>
-        </span>
-      </div>
-    </div>
-<div id="aiResult" style="margin-top:12px">
-      <!-- v3.2.71: 多轮追问 -->
-            <!-- v3.2.71: 场景化诊断模板 -->
-      <div id="aiTplBar" class="u-tplbar">
-        <span class="u-tpl-lab">诊断场景</span>
-        <button id="aiTplSel" class="u-sel-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
-          <span id="aiTplSelLabel">通用</span><span class="u-sel-caret"></span>
-        </button>
-      </div>
-<div id="aiChatBar" class="u-chatbar">
-        <input id="aiChatInput" class="u-ipt-ai" type="text" placeholder="追问：为什么建议这个？ / 上次的建议有效吗？">
-        <button id="aiChatBtn" class="btn btn-ai" style="padding:8px 14px;font-size:13px">追问</button>
-      </div>
-      <div id="aiContent"><div class="empty">未诊断，点击上方按钮开始（需先配置 API key）</div></div>
-    </div>
-  </div>
+  <!-- v3.4.67: 广告屏蔽操作按钮已移入详情弹窗 (ad 卡片点击打开), 外部控制条已移除 -->
 
-  <h2 class="u-h2-alert"><svg class="ic"><use href="#i-alert"/></svg>告警<span id="alertHistBadge" style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:6px"></span></h2>
-  <div id="alerts"><div class="empty">暂无告警</div></div>
   <h2 class="u-h2-ok"><svg class="ic"><use href="#i-module"/></svg>模块状态</h2>
   <div id="modules"><div class="empty">无</div></div>
+  </div><!-- /page-detail -->
 
+
+
+  <!-- v3.4.43: 第3面板: 后台进程 (摘要卡已移除, 只保留进程列表) -->
+  <div class="page" id="page-proc">
   <h2 class="u-h2-neutral"><svg class="ic"><use href="#i-process"/></svg>后台进程 <span id="procCount" class="sub"></span></h2>
   <div id="procs" class="proc-list"><div class="empty">无</div></div>
+  </div><!-- /page-proc -->
+
+<!-- v3.4.43: 底部导航栏 (自 panel2_preview.html 移植) -->
+<nav class="navbar">
+  <button class="nav-item active" data-page="page-overview">
+    <svg><use href="#i-gauge"/></svg>
+    <span>监控</span>
+  </button>
+  <button class="nav-item" data-page="page-detail">
+    <svg><use href="#i-module"/></svg>
+    <span>状态</span>
+  </button>
+  <button class="nav-item" data-page="page-proc">
+    <svg><use href="#i-process"/></svg>
+    <span>进程</span>
+  </button>
+</nav>
 </div>
 
 <div id="aiModal" class="modal" style="display:none">
@@ -704,7 +840,7 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
 // v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
 // v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
 // __atriaVer and UI now reference this constant instead of duplicating the literal.
-const VER_TAG = 'v3.4.34';
+const VER_TAG = 'v3.4.77';
 const LOG_MAX = 500;
 const logBuf = [];
 // v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)
@@ -758,6 +894,9 @@ const wlEl = document.getElementById('wlVal'), wlBar = document.getElementById('
 const pwEl = document.getElementById('pwVal'), pwListEl = document.getElementById('pwList'), pwDot = document.getElementById('pwDot');
 // v3.4.32: 系统状态卡片 (息屏/通知/崩溃)
 const sysValEl = document.getElementById('sysVal'), sysDot = document.getElementById('sysDot');
+// v3.4.40: CPU 核心 + 网络质量卡片
+const ccValEl = document.getElementById('ccVal'), ccDetailEl = document.getElementById('ccDetail');
+const nqValEl = document.getElementById('nqVal'), nqDetailEl = document.getElementById('nqDetail');
 const procEl = document.getElementById('procs'), procCntEl = document.getElementById('procCount');
 const devEl = document.getElementById('dev'), altEl = document.getElementById('alerts'), alertHistBadge = document.getElementById('alertHistBadge');
 const modEl = document.getElementById('modules');
@@ -824,6 +963,39 @@ const KILL_GUARD = ['system_server', 'zygote', 'surfaceflinger', 'com.android.sy
   'com.android.inputmethod',
   // v3.2.71: 面板宿主本身 — freeze/kill 会导致面板直接消失
   'io.github.a13e300.ksuwebui'];
+// v3.4.75: 进程可杀性判定 — 供 buildAiPayload 给每个进程标注 killable 标志
+// 判定逻辑与 sanitizeAction 的 kill 分支完全一致 (KILL_GUARD + 媒体播放保护),
+// 让 AI 在建议前就知道哪些进程可杀, 而不是建议了再被前端拦截 (历史 27 次空转)
+// 返回值: 'ok' 可杀 / 'guard' 受保护 / 'media' 正在播放媒体 / 'unknown' 查不到名字
+function _procKillable(name, pid) {
+  const nm = String(name || '').toLowerCase();
+  if (!nm) return 'unknown';
+  if (_killGuardHit(nm)) return 'guard';
+  const _mp = (latestData && Array.isArray(latestData.media_playing)) ? latestData.media_playing : [];
+  for (let i = 0; i < _mp.length; i++) {
+    const mp = String(_mp[i]).toLowerCase();
+    if (nm === mp || (mp.length > 8 && (mp.indexOf(nm) === 0 || nm.indexOf(mp) === 0))) return 'media';
+  }
+  return 'ok';
+}
+// v3.4.75: 截断进程名修复 — cpu_procs 的 name 来自 comm (15 字符限制),
+// 实测出现 "sistance.operit" / "13e300.ksuwebui" 这类截断名, AI 拿截断名
+// 匹配 KILL_GUARD 完整包名会误判。用 processes 数组的完整名按 pid 补全
+function _fixTruncName(p) {
+  if (!p) return p;
+  const nm = String(p.name || '');
+  // comm 截断的典型特征: 长度恰为 15 或不是合法包名/路径形态
+  if (nm.length < 15 && nm.indexOf('/') < 0) return p;   // 短名无需修复
+  try {
+    const ps = (latestData && latestData.processes) || [];
+    for (let i = 0; i < ps.length; i++) {
+      if (String(ps[i].pid) === String(p.pid) && String(ps[i].name || '').length > nm.length) {
+        return Object.assign({}, p, { name: String(ps[i].name) });
+      }
+    }
+  } catch (e) {}
+  return p;
+}
 function _pidName(pid) {
   try {
     const ps = (latestData && latestData.processes) || [];
@@ -833,6 +1005,37 @@ function _pidName(pid) {
   } catch (e) {}
   return '';
 }
+// v3.4.53: KILL_GUARD 匹配升级 — 原前缀匹配 nm.indexOf(guard)===0 有两个绕过路径:
+//   ① 进程名被 /proc/<pid>/comm 或 C 采集器截断 (如 io.github.a13e300.ksuwebui → io.github.a13e3),
+//     前缀匹配失败 → AI 建议 kill 宿主进程的 PID 时前端放行 → 面板闪退 (属于 self-XSS)
+//   ② guard 本身是另一进程名的前缀时反向误判 (android 匹配到 androidxxx)
+// 改为: 完整匹配 / 截断前缀双向匹配 + 包名核心段 (a13e300) 兜底
+function _killGuardHit(nm) {
+  if (!nm) return null;
+  const n = nm.toLowerCase();
+  for (let i = 0; i < KILL_GUARD.length; i++) {
+    const g = KILL_GUARD[i].toLowerCase();
+    if (n === g) return g;
+    // 进程名截断场景: comm 限 15 字符, 采集器 name 字段也会截断
+    // io.github.a13e3 是 io.github.a13e300.ksuwebui 的截断前缀 (且至少 8 字符, 防误伤短前缀)
+    if (g.length > 8 && (g.indexOf(n) === 0 || n.indexOf(g) === 0) && n.length >= 8) return g;
+  }
+  // v3.4.53: 包名核心段兜底 — 截断后连前缀都不沾边时, 用 guard 的唯一标识段
+  // io.github.a13e300.ksuwebui → a13e300 (用户名段, 截断名里必含)
+  // v3.4.53 修正: 通用段排除表扩大 — vendor.qti.camera 被误判为 vendor.mediacodec
+  // (两者各自拆出的 6 字符段互相误中)。排除 vendor/qti/codeword 类公共段, 最小段 6→7
+  const _BAD_SEGS = ['system', 'android', 'inputme', 'github', 'com', 'vendor', 'qti', 'google', 'mediatek'];
+  for (let i = 0; i < KILL_GUARD.length; i++) {
+    const g = KILL_GUARD[i].toLowerCase();
+    const parts = g.split(/[._-]/);
+    for (let j = 0; j < parts.length; j++) {
+      const seg = parts[j];
+      // 只用足够长的唯一段 (>=7 字符, 排除公共段)
+      if (seg.length >= 7 && !_BAD_SEGS.includes(seg) && n.indexOf(seg) >= 0) return g;
+    }
+  }
+  return null;
+}
 function sanitizeAction(a) {
   const s = String(a == null ? '' : a).trim();
   if (!ACT_OK.test(s)) return null;
@@ -841,8 +1044,15 @@ function sanitizeAction(a) {
     const pid = s.slice(5).trim();
     const nm = _pidName(pid).toLowerCase();
     if (!nm) return s;   // 拿不到名字时放行, optimize.sh 侧还有保护名单兜底
-    for (let i = 0; i < KILL_GUARD.length; i++) {
-      if (nm === KILL_GUARD[i] || nm.indexOf(KILL_GUARD[i]) === 0) return null;
+    // v3.4.53: 截断名双向匹配 + 核心段兜底 (原前缀单一匹配, 截断名绕过)
+    if (_killGuardHit(nm)) return null;
+    // v3.4.53: 媒体播放保护补 kill 分支 — 原只覆盖 force-stop, AI 建议 kill 微信 PID 时放行,
+    // 用户正在听语音/看视频会被中断 (media_playing 字段由 collect_loop 注入)
+    const _mp = (latestData && Array.isArray(latestData.media_playing)) ? latestData.media_playing : [];
+    for (let i = 0; i < _mp.length; i++) {
+      const mp = String(_mp[i]).toLowerCase();
+      // 截断名同款双向匹配 (media 包名也可能被截断)
+      if (nm === mp || (mp.length > 8 && mp.length >= 8 && (mp.indexOf(nm) === 0 || nm.indexOf(mp) === 0))) return null;
     }
   }
   // v3.2.71: am force-stop 同样过 KILL_GUARD — 原 force-stop 只查 ACT_OK 正则,
@@ -961,7 +1171,9 @@ function isActionCoolingDown(act) {
   const now = Date.now();
   for (let i = _actionReg.length - 1; i >= 0; i--) {
     const r = _actionReg[i];
-    if (r.action === act && r.status === 'ok' && (now - (r.ts || 0)) < ACTION_COOLDOWN_MS) return r;
+    // v3.4.71: ok/skip/fail 全查 — 旧实现只查 ok,
+    // skip (保护名单拦截) 与 fail 不进注册表 → AI 下轮重复建议同一进程 → 又被拦 → 空转
+    if (r.action === act && (r.status === 'ok' || r.status === 'skip' || r.status === 'fail') && (now - (r.ts || 0)) < ACTION_COOLDOWN_MS) return r;
   }
   return null;
 }
@@ -972,6 +1184,41 @@ function recordAction(act, status) {
     const row = JSON.stringify({ ts: Date.now(), time: new Date().toLocaleTimeString(), action: String(act).slice(0, 60), status: String(status).slice(0, 12) });
     exec("printf '%s\\n' '" + row.replace(/'/g, '') + "' >> " + ACTION_REG_FILE + " 2>/dev/null").catch(() => {});
     if (_actionReg) _actionReg.push({ ts: Date.now(), time: new Date().toLocaleTimeString(), action: String(act).slice(0, 60), status: String(status).slice(0, 12) });
+  } catch (e) {}
+}
+// v3.4.77: pending 动作登记 — AI 建议了但本轮不会自动执行的动作 (kill/force-stop/freeze
+// 等需用户确认类, 或 risk 非"高"未触发 runAutoOptimize) 记录到 action_reg + action_effects。
+// 背景: v3.4.75 的 killable 标志解决了"建议不可杀进程"的空转, 但出现新型空转——AI 建议
+// 可杀进程 (如 kill 20910 webview 沙盒), risk=低/中时 runAutoOptimize 不触发, 或触发后
+// kill 类被 AUTO_SAFE 安全闸排除只渲染成按钮; 用户不点确认 → action_reg 无记录 → 下轮
+// payload recent_actions 为空 → AI 重复建议同一动作。登记 pending 后, recent_actions 显示
+// "kill 20910[pending]", prompt 硬性禁令 (不得重复建议 recent_actions 里的动作) 生效。
+// 注意: 与 recordAction 的互斥 — 同一动作 30 分钟内若已有 ok/skip/fail/pending 记录则跳过,
+// 避免每轮重复写 pending 把 action_reg 刷爆 (appendActionEffect 同理)。
+const PENDING_REG_MS = 30 * 60 * 1000;   // 与 ACTION_COOLDOWN_MS 对齐
+function _recordPendingActions(actions, riskLevel) {
+  try {
+    if (!actions || !Array.isArray(actions) || !actions.length) return;
+    // v3.4.77: 只登记需确认类 (杀进程/冻结/模块) — 设定类 (drop_caches/vm/clean_cache 等)
+    // 在 runAutoOptimize 里会自动执行, 不存在 pending 空转问题
+    const _NEED_CONFIRM = /^(kill |am force-stop |freeze |unfreeze |module )/;
+    const pendings = actions.filter(a => _NEED_CONFIRM.test(String(a || '')));
+    if (!pendings.length) return;
+    const now = Date.now();
+    // 与 action_reg 合并查重 (含 pending 自身, 30 分钟内同一动作只登记一次)
+    const _reg = Array.isArray(_actionReg) ? _actionReg : [];
+    for (const a of pendings) {
+      const act = String(a).slice(0, 60);
+      // 已有记录 (任意状态, 30 分钟内) 则跳过
+      let _dup = false;
+      for (let i = _reg.length - 1; i >= 0; i--) {
+        const r = _reg[i];
+        if (r && r.action === act && (now - (r.ts || 0)) < PENDING_REG_MS) { _dup = true; break; }
+      }
+      if (_dup) continue;
+      recordAction(act, 'pending');
+      appendActionEffect(act, 'pending', null, null);
+    }
   } catch (e) {}
 }
 async function execAction(rawAct) {
@@ -989,7 +1236,9 @@ async function execAction(rawAct) {
     const data = JSON.parse(out);
     const r = (data.results || [])[0] || { action: act, status: 'fail', msg: '执行无返回' };
     // v3.4.23: 记录到动作注册表 (成功/跳过/失败都记, cooldown 查询用)
-    if (r.status === 'ok' || r.status === 'skip') recordAction(act, r.status);
+    // v3.4.71: 记录全部状态 (含 fail/reject) — 旧实现只记 ok/skip,
+    // AI 下轮仍会建议同一动作 (注册表查不到失败记录, 又被保护名单拦, 空转)
+    if (r.status === 'ok' || r.status === 'skip' || r.status === 'fail') recordAction(act, r.status);
     appendActionEffect(act, r.status, null, null);
     return r;
   } catch (e) {
@@ -1019,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 let aiBusy = false;
-const escSh = s => String(s).replace(/'/g, "'\\''");
+const escSh = s => String(s).replace(/'/g, "'\\''");   /* v3.4.53: 复核确认原实现正确 — 单引号上下文内 ;$()|&` 全为字面量, 仅 ' 需转义; 曾试图补元字符转义, 实测会向 JSON body 插入 \( 等非法转义致 API 400, 已回滚 */
 
 // v3.2.28: exec 通道变更时同步暴露 (原 2s 轮询是无谓的主线程开销)
   function buildFallbackExec() {
@@ -1190,12 +1439,22 @@ function drawChart() {
   try { _drawChartImpl(); _chartFails = 0; }
   catch (e) { _chartFails++; try { dlog('drawChart', String(e.message || e).slice(0, 120)); } catch (_) {} }
 }
+// v3.4.74: 趋势图重绘 — 温度独立右轴 / 真实时间轴 / LTT 抽稀 / 隐藏面板跳过
+// 预览页 trend_preview.html 已验收 (真实历史数据 80 条, 新旧并排对比)
+const NEW_CHART = { L: 52, R: 40, T: 10, B: 26 };   /* 左右上下留白: 右侧给温度刻度, 底部给时间轴 */
 function _drawChartImpl() {
+  // v3.4.74-5: 隐藏面板跳过 — 三面板切换后 canvas display:none, clientWidth=0,
+  // 原实现仍每帧跑 4 条贝塞尔 + shadowBlur, 纯浪费 GPU (sizeCanvas 兜底 300px 画的是看不见的图)
+  if (!cv || cv.clientWidth === 0 || cv.clientHeight === 0) return;
   const w = cv.clientWidth, h = cv.clientHeight || 120;   /* v3.3.6: 与 CSS 显示高一致, 原来恒 120 被 160px CSS 拉伸变形 */
+  const plotW = w - NEW_CHART.L - NEW_CHART.R, plotH = h - NEW_CHART.T - NEW_CHART.B;
   // v3.2.34: 网格只在首次绘制一次, resize 时 sizeCanvas 已重建 (drawImage 缓存位图是 GPU blit, 已足够快)
   // v3.2.92: 网格淡化为 半透明细线 + 竖向辅助虚线, 精致不喧宾夺主
-  if (!gridCv || gridCv.width !== cv.width) {
+  // v3.4.74: 网格重建条件加上留白指纹 — 右轴/时间轴的留白变了, 旧缓存位图会错位
+  const _gridKey = w + 'x' + h + 'x' + NEW_CHART.L + 'x' + NEW_CHART.R;
+  if (!gridCv || gridCv._key !== _gridKey) {
     gridCv = document.createElement('canvas');
+    gridCv._key = _gridKey;
     gridCv.width = cv.width; gridCv.height = cv.height;
     const g = gridCv.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -1203,19 +1462,28 @@ function _drawChartImpl() {
     g.lineWidth = 1;
     g.font = '10px sans-serif';
     // 横向网格 + 左侧刻度 (0/25/50/75/100)
+    // v3.4.53: 左侧留白 30 -> 46 — 曲线发光 (shadowBlur=7) 加端点圆点向左晕染约 10px,
+    // 原来 30px 留白不够, 曲线左端点的发光会蹭到刻度数字 (x=4~26) 上
+    // v3.4.74: 左侧留白 46 -> 52, 底部留出 26px 给时间轴标签
     for (let i = 0; i <= 4; i++) {
-      const y = (h - 16) * i / 4 + 6;
+      const y = NEW_CHART.T + plotH * i / 4;
       g.strokeStyle = i === 4 ? 'rgba(148,163,184,0.10)' : 'rgba(148,163,184,0.13)';
-      g.beginPath(); g.moveTo(30, y); g.lineTo(w - 6, y); g.stroke();
+      g.beginPath(); g.moveTo(NEW_CHART.L, y); g.lineTo(w - NEW_CHART.R, y); g.stroke();
       g.fillStyle = 'rgba(148,163,184,0.55)';
-      g.fillText((100 - i * 25) + '', 4, y + 3);
+      g.fillText((100 - i * 25) + '', 14, y + 3);
+      // v3.4.74-3: 右侧温度刻度 (红, 与 temp 曲线同量程 0-80, 与左轴百分制解耦)
+      // 原 temp 量程 80 与 mem 量程 100 共用左轴刻度, 温度 40°C 实际画在 50% 高度, 读数与刻度完全对不上
+      g.fillStyle = 'rgba(248,113,113,0.5)';
+      g.fillText((80 - i * 20) + '', w - NEW_CHART.R + 8, y + 3);
     }
     // v3.2.92: 3 条竖向辅助虚线, 图表节奏感
+    // v3.4.74: 竖线与时间轴槽位对齐 (5 槽位时 4 条, 3 槽位时 2 条)
     g.setLineDash([3, 5]);
     g.strokeStyle = 'rgba(148,163,184,0.08)';
-    for (let j = 1; j <= 3; j++) {
-      const x = 30 + (w - 40) * j / 4;
-      g.beginPath(); g.moveTo(x, 6); g.lineTo(x, h - 16); g.stroke();
+    const _slots = (histData && histData.length > 60) ? 5 : 3;
+    for (let j = 1; j < _slots; j++) {
+      const x = NEW_CHART.L + plotW * j / _slots;   /* v3.4.53: 与曲线 X 轴同步 */
+      g.beginPath(); g.moveTo(x, NEW_CHART.T); g.lineTo(x, NEW_CHART.T + plotH); g.stroke();
     }
     g.setLineDash([]);
   }
@@ -1223,21 +1491,64 @@ function _drawChartImpl() {
   ctx.drawImage(gridCv, 0, 0, w, h);
   // v3.2.34: 历史模式用 histData (来自 jsonl), 实时模式用 history
   const srcRaw = histData || history;
-  // v3.2.28: 降采样 - 超过 120 点时抽稀到 ~60 点, 老设备 GPU 绘制压力减半
-  let step = 1;
-  if (srcRaw.length > 120) step = Math.ceil(srcRaw.length / 60);
-  const src = step > 1 ? srcRaw.filter((_, i) => i % step === 0 || i === srcRaw.length - 1) : srcRaw;
+  // v3.4.74-1: 大点数抽稀 — 原 v3.2.28 抽稀 >120 点只取 i%step, 24h 窗口 5760+ 点被抽到 60,
+  // 峰谷细节全丢; 新方案 LTT 形心抽稀到 160, 每个桶取均值, 保形且省 GPU
+  let src = srcRaw;
+  if (srcRaw.length > 160) {
+    const target = 160, bucket = srcRaw.length / target;
+    const out = [];
+    for (let i = 0; i < target; i++) {
+      const a = Math.floor(i * bucket), b = Math.min(srcRaw.length, Math.floor((i + 1) * bucket));
+      if (b <= a) continue;
+      let mm = 0, mc = 0, mt = 0, mb = 0, mts = 0;
+      for (let j = a; j < b; j++) {
+        mm += +(srcRaw[j].mem || 0); mc += +(srcRaw[j].cpu || 0);
+        mt += +(srcRaw[j].temp || 0); mb += +(srcRaw[j].batt || 0); mts += +(srcRaw[j].ts || 0);
+      }
+      const k = b - a;
+      out.push({ ts: Math.round(mts / k), mem: Math.round(mm / k), cpu: Math.round(mc / k), temp: +(mt / k).toFixed(1), batt: Math.round(mb / k) });
+    }
+    out.push(srcRaw[srcRaw.length - 1]);
+    src = out;
+  }
   if (src.length < 1) return;
   const n = src.length;
-  const px = i => 30 + (w - 40) * (n === 1 ? 0 : i / (n - 1));
-  const py = v => 6 + (100 - Math.min(100, Math.max(0, v))) * (h - 22) / 100;
-  const n1 = n - 1, w40 = w - 40, h22 = h - 22;
+  // v3.4.74-2: X 轴按真实时间戳分布 — 原 px() 恒均匀分布, 6h 和 24h 看起来一样密,
+  // 且 jsonl 尾部密集头部稀疏时曲线被压扁; 无 ts (实时 history 无 ts 字段) 回退均匀
+  const hasTs = src[0] && src[0].ts && src[0].ts > 0;
+  const tMin = hasTs ? src[0].ts : 0, tMax = hasTs ? src[n - 1].ts : n - 1;
+  const px = i => {
+    if (!hasTs) return NEW_CHART.L + plotW * (n === 1 ? 0 : i / (n - 1));
+    const t = src[i].ts;
+    return NEW_CHART.L + plotW * (tMax === tMin ? 0 : (t - tMin) / (tMax - tMin));
+  };
+  const py = v => NEW_CHART.T + (100 - Math.min(100, Math.max(0, v))) * plotH / 100;
+  // v3.4.74-4: 底部时间轴 — 首点/中点/末点标 HH:MM, 历史模式一眼区分时间跨度
+  if (hasTs && gridCv) {
+    const g = gridCv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.font = '10px sans-serif';
+    g.fillStyle = 'rgba(148,163,184,0.5)';
+    const slots = n > 60 ? 5 : 3;
+    for (let k = 0; k < slots; k++) {
+      const t = tMin + (tMax - tMin) * k / (slots - 1);
+      const x = NEW_CHART.L + plotW * k / (slots - 1);
+      const d = new Date(t * 1000);
+      const p = nn => String(nn).padStart(2, '0');
+      const txt = p(d.getHours()) + ':' + p(d.getMinutes());
+      g.fillText(txt, Math.min(x - 12, w - NEW_CHART.R - 44), h - 8);
+    }
+    // 时间标签画进网格缓存位图后, 标记 key 防止下次重建丢失
+    gridCv._key = _gridKey + ':ts' + tMin + ':' + tMax + ':' + slots;
+  }
+  const n1 = n - 1, w40 = w - 56, h22 = h - 22;   /* v3.4.53: w40 语名保留, 值随左边距同步 */
   // v3.2.92: 线宽微调 + 圆角端点, 曲线更柔
   const series = [
     { key: 'mem', color: '#38bdf8', lw: 2.25, dash: [] },
     { key: 'cpu', color: '#f59e0b', lw: 2.25, dash: [] },
     { key: 'temp', color: '#f87171', lw: 1.75, dash: [4, 3],
-      py: v => 6 + (80 - Math.min(80, Math.max(0, v || 0))) * h22 / 80 },
+      py: v => NEW_CHART.T + (80 - Math.min(80, Math.max(0, v || 0))) * plotH / 80 },   /* v3.4.74: 温度量程与右轴刻度同源 */
     // v3.4.32: 电池曲线 (0-100 与内存同量程, 绿色虚线区别于实线)
     { key: 'batt', color: '#4ade80', lw: 1.75, dash: [2, 3] }
   ];
@@ -1246,11 +1557,11 @@ function _drawChartImpl() {
     const ser = series[s2], f = ser.py || py;
     // v3.2.91: 先算 всех 点坐标一次 (面积 + 线 + 端点 复用)
     const pts = [];
-    for (let i = 0; i < n; i++) pts.push([30 + (n === 1 ? 0 : w40 * i / n1), f(src[i][ser.key] || 0)]);
-    const baseY = h - 10;
+    for (let i = 0; i < n; i++) pts.push([px(i), f(src[i][ser.key] || 0)]);   /* v3.4.53: 复用 px() — 原硬编码 30px 起点, v3.4.53 网格左移到 46 后曲线仍从 30 起, 压到刻度数字区 */
+    const baseY = NEW_CHART.T + plotH;
     // v3.2.92: 面积渐变填充 (仅 mem/cpu 主角曲线, temp 虚线量程不同不填)
     if (s2 < 2) {
-      const grad = ctx.createLinearGradient(0, 6, 0, baseY);
+      const grad = ctx.createLinearGradient(0, NEW_CHART.T, 0, baseY);
       grad.addColorStop(0, ser.color + '2e');   // 顶部 ~18% alpha
       grad.addColorStop(1, ser.color + '00');   // 底部全透
       ctx.fillStyle = grad;
@@ -1269,10 +1580,11 @@ function _drawChartImpl() {
     }
     // v3.2.92: 平滑曲线 (二次贝塞尔, 控制点取相邻点中点 — 曲线穿过每个数据点, 点少时退化为直线)
     ctx.strokeStyle = ser.color; ctx.lineWidth = ser.lw; ctx.setLineDash(ser.dash);
-    // v3.2.92: 轻微同色发光, 数据线有光晕质感 (shadowBlur 在 WebView 上成本可控)
-    ctx.shadowColor = ser.color; ctx.shadowBlur = s2 < 2 ? 7 : 5;
-    ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
+    // v3.4.62: 性能 — 线条 shadowBlur 7->4, 且只给前 2 条主曲线 (mem/cpu) 保留发光,
+    // temp/batt 虚线关闭发光。原实现每帧 4 线 × 发光 = 8 次 shadowBlur 绘制,
+    // 是图表帧率低的主因 (WebView shadowBlur 走软件光栅, 高斯模糊按半径平方级开销)
+    ctx.shadowColor = ser.color; ctx.shadowBlur = s2 < 2 ? 4 : 0;
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
     for (let i = 1; i < n; i++) {
       const p0 = pts[i - 1], p1 = pts[i];
       const mx = (p0[0] + p1[0]) / 2;
@@ -1284,13 +1596,18 @@ function _drawChartImpl() {
     // v3.2.92: 最新数据点 - 发光圆点, 实时脉搏
     const lp = pts[n - 1];
     ctx.fillStyle = ser.color;
-    ctx.shadowColor = ser.color; ctx.shadowBlur = 9;
-    ctx.beginPath(); ctx.arc(lp[0], lp[1], n > 4 ? 3 : 2.4, 0, 6.2832); ctx.fill();
+    // v3.4.62: 端点发光 9 -> 5 (同上, shadowBlur 软件光栅开销随半径平方增长)
+    // v3.4.74-6: 端点 y 钳制下限 — batt=100 时端点在顶部, 发光圆点 shadowBlur=5 向上晕染蹭到上沿;
+    // 且历史模式抽稀后 (n>160) 关闭端点圆点, 160 点的端点无意义且省一次发光绘制
+    ctx.shadowColor = ser.color; ctx.shadowBlur = n > 160 ? 0 : 5;
+    const _r = n > 160 ? 0 : (n > 4 ? 3 : 2.4);
+    if (_r > 0) { ctx.beginPath(); ctx.arc(lp[0], Math.max(NEW_CHART.T + 2, lp[1]), _r, 0, 6.2832); ctx.fill(); }
     ctx.shadowBlur = 0;
   }
   ctx.setLineDash([]);
   ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
 }
+
 
 // v3.2.28: WebView 时区 API 容错 (某些设备 toLocaleTimeString 抛 RangeError 导致渲染中断)
 function safeTime() { try { return new Date().toLocaleTimeString(); } catch (e) { try { return new Date().toISOString().slice(11, 19); } catch (e2) { return '--:--:--'; } } }
@@ -1344,9 +1661,28 @@ function diagnoseLocal(d) {
     src.push('PSI-IO ' + _ioStall.toFixed(0) + '%');
   }
 
+  // v3.4.53: 综合压力判级 — 原仅 mem 70-85% 分支用 PSI 修饰文案, CPU 压力/zram 完全没进判级。
+  // 实测数据: psi_cpu.s10 > 50 = 任务在等 CPU (真机当前 14.58% 正常), swap pct > 70 = 物理内存真紧张 (当前 29%)。
+  // 新增: CPU 压力 / zram 高位独立判级, 并驱动对应动作
+  const _k = d.kernel || {};
+  const _psiCpu = _k.psi_cpu || null;
+  const _cpuStall = _psiCpu ? +(_psiCpu.s10 || 0) : 0;
+  if (_cpuStall > 50) {
+    if (sevScore < 1) sevScore = 1;
+    sug.push('CPU 压力 ' + _cpuStall.toFixed(0) + '%，任务排队等 CPU，建议结束后台高占用进程');
+    src.push('PSI-CPU ' + _cpuStall.toFixed(0) + '%');
+  }
+  const _swap = _k.swap || null;
+  const _swapPct = _swap ? +(_swap.pct || 0) : 0;
+  if (_swapPct > 70) {
+    if (sevScore < 1) sevScore = 1;
+    sug.push('zram/swap 使用 ' + _swapPct.toFixed(0) + '%，物理内存确实紧张，建议 drop_caches 或结束后台');
+    acts.push('drop_caches');
+    src.push('swap ' + _swapPct.toFixed(0) + '%');
+  }
   // ---- 温度 ----
   // v3.2.28: 排除 batt/battery 类 zone (部分设备实际测充电芯片, 60-95°C 是常态)
-  const SOC_ONLY = { cpu: 1, gpu: 1, dsp: 1, modem: 1, skin: 1, charger:1, wifi: 1, other: 1, camera: 1, chipset: 1 };
+  const SOC_ONLY = SOC_ZONE_OK;   /* v3.4.53: 引用共享白名单 (原局部副本漏 camera/chipset) */
   let tempMax = 0, tempZone = '', thermalCount = 0;
   (d.thermal || []).forEach(z => {
     if (!SOC_ONLY[String(z.label || '')]) return;
@@ -1489,6 +1825,9 @@ function lvlColor(v, yellowAt, redAt) {
 
 // v3.2.34: 相同 timestamp 跳过重复分析 (页面切回前台时常遇到一串重复数据)
 // v3.2.71: 温度阈值统一表 — analyze() 与 diagnoseLocal() 共用, 原先两处各写一套
+// v3.4.53: SOC 温度 zone 白名单统一 — 原 diagnoseLocal/analyze/render 三处各写一份,
+// analyze 的那份漏了 camera/chipset: camera 型温度过高时面板看得到 (render 含), 本地诊断却不报 (analyze 不含)
+const SOC_ZONE_OK = { cpu: 1, gpu: 1, dsp: 1, modem: 1, skin: 1, charger: 1, wifi: 1, other: 1, camera: 1, chipset: 1 };
 // 分区阈值: 充电芯片常年比 CPU 热 (快充 50-60°C 是常态), 皮肤温度 >45°C 手感发烫
 // v3.4.32: 阈值回调 — 骁龙 8 Gen 3 轻度负载 48-52°C 完全正常, 原 mid 45 让 cpu 49°C 每小时刷十几条"温度偏高"
 const TEMP_RULES = {
@@ -1511,7 +1850,8 @@ function analyze(d) {
   else if (pct > 70) found.push({severity:'中', title:'内存占用 ' + pct + '%', detail:'内存压力上升', suggestion:'关注后台进程'});
   // v3.2.34: 温度告警 (>55°C 高, >45°C 中)
   // v3.2.28: 排除 batt/battery 类 zone (部分设备实际测充电芯片, 常年 60-95°C 误报)
-  const SOC_ONLY = { cpu: 1, gpu: 1, dsp: 1, modem: 1, skin: 1, charger: 1, wifi: 1, other: 1 };
+  const SOC_ONLY = SOC_ZONE_OK;   /* v3.4.53: 引用共享白名单 — 原此副本漏了 camera/chipset,
+                                  camera 型温度过高时面板见到但本地告警漏报 */
   // v3.4.32: 温度告警彻底改全局节流 — 原按 zone 分桶 ('th:'+label), 8 个 SoC zone 各享 10 分钟,
   // 换 zone 报告即绕过 (实测 70 秒内连报 other/cpu/skin/gpu 4 条), 全局只留 1 条最高优先级
   const _now = Date.now();
@@ -1615,13 +1955,22 @@ function analyze(d) {
   // v3.2.71: 温度告警节流 (key: zone label)
   // v3.2.71: 节流 key 用"告警类型前缀"而非完整 title — title 含数值 (内存 73%→74%),
   // 数值微变即绕过节流; 同类型告警 30 秒内只进一条
+  // v3.4.53: 节流分级 — 原 30s 一刀切, 面板 5s 轮询下告警历史被同类刷屏
+  // (实测: "内存占用 71%" 71 条 / "崩溃爆发 dex2oat" 29 条 / 温度类十几条)
+  // 按告警类型分桶: 温度/内存等"连续量"告警 5 分钟一条, 崩溃爆发等"事件型"告警 30 分钟一条
+  const ALERT_COOLDOWN = { '温度': 300000, '内存占用': 300000, '进程': 300000, '崩溃爆发': 1800000, '安全': 1800000 };
   found.forEach(a => {
     // 提取告警类型前缀: "温度 cpu 56.0°C" → "温度 cpu"; "内存占用 73%" → "内存占用"
     const _tk = a.title.replace(/\s+[0-9.]+%?°?C?\s*$/, '').trim() || a.title;
+    // v3.4.53: 查该类型的冷却时长, 默认 2 分钟 (原 30 秒)
+    let _cd = 120000;
+    for (const _k in ALERT_COOLDOWN) {
+      if (_tk.indexOf(_k) === 0) { _cd = ALERT_COOLDOWN[_k]; break; }
+    }
     if (!seen.has(_tk)) {
       seen.add(_tk);
       const last = lastAlertMap[_tk] || 0;
-      if (now - last > 30000) { lastAlertMap[_tk] = now; a.time = safeTime(); alerts.push(a); appendAlertHist(a); }
+      if (now - last > _cd) { lastAlertMap[_tk] = now; a.time = safeTime(); alerts.push(a); appendAlertHist(a); }
     }
   });
   if (alerts.length > 50) alerts = alerts.slice(-50);
@@ -1631,7 +1980,7 @@ const _r = { dev: '', mt: '', mcls: '', mw: '', mb: '', md: '', ct: '', ccls: ''
   tt: '', tcls: '', tw: '', tb: '', td: '',
   bt: '', bcls: '', bw: '', bb: '', bd: '',
   st: '', scls: '', sw: '', sb: '', sd: '',
-  nt: '', ncls: '', nw: '', nb: '', nd: '' };
+  nt: '', ncls: '', nw: '', nb: '', nd: '', ccv: '', ccd: '', nqv: '', nqd: '' };
 function render(d) {
   window.__atriaLastData = d;  // v3.4.19: 详情弹窗复用渲染数据, 无额外采集
   // v3.1.9: 渲染时间戳, 数据过期时给提示 (原实现 timestamp 从不显示)
@@ -1653,7 +2002,8 @@ function render(d) {
   if (mw !== _r.mw) { _r.mw = mw; memBar.style.width = mw; }
   const mb = mp > 85 ? '#f87171' : mp > 70 ? '#facc15' : '#4ade80';
   if (mb !== _r.mb) { _r.mb = mb; memBar.style.background = mb; }
-  const md = (m.used_mb == null ? '--' : m.used_mb) + ' / ' + (m.total_mb == null ? '--' : m.total_mb) + ' MB';
+  const md = (m.used_mb == null ? '--' : m.used_mb) + ' / ' + (m.total_mb == null ? '--' : m.total_mb) + ' MB'
+    + (m.avail_mb != null ? ' · 可用 ' + m.avail_mb + 'MB' : '');
   if (md !== _r.md) { _r.md = md; memD.textContent = md; }
   const ct = (cp == null ? '--' : cp) + '%';
   if (ct !== _r.ct) { _r.ct = ct; cpuEl.textContent = ct; pulse(cpuEl); setDot(cpuDot, cp > 85 ? '#f87171' : cp > 70 ? '#facc15' : '#4ade80'); }
@@ -1673,7 +2023,7 @@ function render(d) {
   let tempMax = 0, tempList = [];
   // v3.2.28: 温度卡片只统计 SoC 相关类. batt/battery zone 部分设备实际测的是
   // 充电芯片/PA 温度 (常 60-95°C), 混入会让"CPU 温度"卡片误报过热
-  const SOC_LABELS = { cpu: 1, gpu: 1, dsp: 1, modem: 1, skin: 1, charger: 1, wifi: 1, other: 1, camera: 1, chipset: 1 };
+  const SOC_LABELS = SOC_ZONE_OK;   /* v3.4.53: 引用共享白名单 (三处统一) */
   (th).forEach(z => {
     const t = +(z.temp || 0);
     if (t > 0 && SOC_LABELS[String(z.label || '')]) { if (t > tempMax) tempMax = t; tempList.push(z); }
@@ -1756,9 +2106,14 @@ function render(d) {
   if (pw && pw.top && pw.top.length) {
     const _pwTxt = pw.top[0].mah + ' mAh';
     if (_pwTxt !== _r.pwv) { _r.pwv = _pwTxt; pwEl.textContent = _pwTxt; }
-    const _pwRows = pw.top.slice(0, 4).map((x, i) =>
-      '<div style="display:flex;justify-content:space-between"><span>' + (i + 1) + '. ' + esc(x.pkg) + '</span><span style="color:#38bdf8">' + x.mah + ' mAh</span></div>'
-    ).join('');
+    // v3.4.64: 耗电排行显示应用名 (查 labels sidecar, 查不到降级短包名; 与详情弹窗一致)
+    const _labs = (d && d.labels) || (window.__atriaLabels) || null;
+    const _pwRows = pw.top.slice(0, 4).map((x, i) => {
+      const _pkg = String(x.pkg || '?');
+      const _lab = (_labs && _labs[_pkg]) || '';
+      const _nm = _lab || _pkg.split('.').pop();
+      return '<div style="display:flex;justify-content:space-between"><span>' + (i + 1) + '. ' + esc(_nm) + '</span><span style="color:#38bdf8">' + x.mah + ' mAh</span></div>';
+    }).join('');
     if (_pwRows !== _r.pwl) { _r.pwl = _pwRows; pwListEl.innerHTML = _pwRows; }
   } else {
     if ('--' !== _r.pwv) { _r.pwv = '--'; pwEl.textContent = '--'; }
@@ -1774,6 +2129,25 @@ function render(d) {
    let _crTxt = '';
    if (_cr.app != null && +_cr.app > 0) _crTxt = _cr.app + ' 崩溃';
    if (_cr.tool && +_cr.tool > 0) _crTxt = (_crTxt ? _crTxt + ' ' : '') + '+' + _cr.tool + ' 工具';
+   // v3.4.40: CPU 核心卡片 — 大核最高负载 + 频率摘要
+   const _cc = d.cpu_cores || [];
+   if (_cc.length) {
+     const _ccBusy = _cc.reduce((a, c) => a + (+c.util_pct || 0), 0);
+     const _ccMax = Math.max.apply(null, _cc.map(c => +c.util_pct || 0));
+     const _ccTxt = _ccMax + '%';
+     if (_ccTxt !== _r.ccv) { _r.ccv = _ccTxt; if (ccValEl) ccValEl.textContent = _ccTxt; }
+     const _big = _cc.filter(c => c.core >= 5);
+     const _cdTxt = _big.length ? '大核 ' + (_big[0].freq_khz / 1000).toFixed(1) + 'GHz' : '';
+     if (_cdTxt !== _r.ccd) { _r.ccd = _cdTxt; if (ccDetailEl) ccDetailEl.textContent = _cdTxt; }
+   }
+   // v3.4.40: 网络质量卡片 — 延迟 + socket
+   const _nq = d.netq || null;
+   if (_nq && _nq.rtt_ms) {
+     const _nqTxt = _nq.rtt_ms + 'ms';
+     if (_nqTxt !== _r.nqv) { _r.nqv = _nqTxt; if (nqValEl) nqValEl.textContent = _nqTxt; }
+     const _nqdTxt = '连接 ' + _nq.sockets + ' 个';
+     if (_nqdTxt !== _r.nqd) { _r.nqd = _nqdTxt; if (nqDetailEl) nqDetailEl.textContent = _nqdTxt; }
+   }
    // v3.4.32: 安全威胁注入显示 — level 非 ok 时加 "⚠N 威胁"
    const _se = d.security || {};
    let _seTxt = '';
@@ -1794,7 +2168,14 @@ function render(d) {
     srcs.forEach(k => {
       const entries = du[k] || {};
       const top3 = Object.entries(entries).sort((a, b) => b[1] - a[1]).slice(0, 3);
-      if (top3.length) parts.push(k + ': ' + top3.map(e => e[0] + ' ' + (e[1] / 1024).toFixed(0) + 'G').join(', '));
+      // v3.4.64: 单位修复 — du -s 输出为 KB, 原 /1024 得 MB 却标 'G', 数据放大 1024 倍
+    // (com.ai.assistance.operit 5818KB 显示成 5818G)。KB → GB 需连除两个 1024
+    // v3.4.64: 同时显示应用名 (查 labels sidecar, 查不到降级短包名)
+    const _labs2 = (d && d.labels) || (window.__atriaLabels) || null;
+    if (top3.length) parts.push(k + ': ' + top3.map(e => {
+      const _lab2 = (_labs2 && _labs2[e[0]]) || '';
+      return (_lab2 || e[0].split('.').pop()) + ' ' + (e[1] / 1048576).toFixed(1) + 'G';
+    }).join(', '));
     });
     const duTxt = parts.join(' | ') || '--';
     if (duTxt !== _r.du) { _r.du = duTxt; storeD.textContent = storeD.textContent.split(' | ')[0] + ' | ' + duTxt; }
@@ -2043,6 +2424,61 @@ function render(d) {
   }
 
 // v3.2.34 恢复: 状态文件与采集命令常量 (此前被误删导致 poll 抛 ReferenceError, 面板空白)
+// v3.4.40: 静态字段 sidecar 合并 — modules/labels 是准静态数据, 不再每周期写进主 JSON
+// 主 JSON 的 modules/labels 恒为空, 真实数据在 sidecar 文件, 只在内容变化时才更新
+// 带内存缓存: base64 内容没变就不重复 JSON.parse
+let _modsSideRaw = null, _modsSideArr = null;
+let _labsSideRaw = null, _labsSideArr = null;
+let _sideTick = 0;
+
+async function _fetchSidecar(path) {
+  try {
+    // v3.4.59: 超时保护 — poll 里 sidecar 读取裸 await, exec 卡住时整个 poll 挂起报"采集失败";
+    // execWithTimeout 内部走 execFn (由 awaitExec 保证就绪)
+    const b64 = await execWithTimeout('base64 -w0 ' + path, 6000);
+    if (!b64 || !b64.trim()) return null;
+    return decodeURIComponent(escape(atob(b64.trim())));
+  } catch (e) { return null; }
+}
+
+// v3.4.40: 读 modules sidecar (主 JSON modules=[] 时调用)
+async function fetchModsSidecar() {
+  try {
+    if (!_modsSideRaw) {
+      const txt = await _fetchSidecar('/data/local/tmp/atria_static_modules.json');
+      if (!txt) return null;
+      _modsSideRaw = txt;
+      const obj = JSON.parse(txt);
+      _modsSideArr = obj.modules || null;
+    }
+    return _modsSideArr;
+  } catch (e) { return null; }
+}
+
+// v3.4.40: 读 labels sidecar (主 JSON labels 为空时调用)
+async function fetchLabsSidecar() {
+  try {
+    if (!_labsSideRaw) {
+      const txt = await _fetchSidecar('/data/local/tmp/atria_static_labels.json');
+      if (!txt) return null;
+      _labsSideRaw = txt;
+      const obj = JSON.parse(txt);
+      _labsSideArr = obj.labels || null;
+    }
+    return _labsSideArr;
+  } catch (e) { return null; }
+}
+
+// v3.4.40: sidecar 缓存失效 — 每 60 次 poll 重读一次 (检测模块/应用列表变化)
+function modsSidecarMaybeRefresh() {
+  _sideTick++;
+  if (_sideTick >= 60) {
+    _sideTick = 0;
+    _modsSideRaw = null;
+    _labsSideRaw = null;
+  }
+}
+
 const STATUS_JSON = 'file:///data/local/tmp/atria_status.json';
 
 // v3.2.43: fetch 超时包装 (AbortController 不可用时回退 Promise 竞速, 兼容旧 WebView)
@@ -2074,10 +2510,17 @@ async function fetchStatus() {
 // (collect.sh 直跑输出无 power 字段, 且经 exec 同样被截断, 不能作为回退数据源)
 // atob 对 UTF-8 中文会乱码, 用 decodeURIComponent(escape()) 解 (v3.2.45 白名单同款方案)
 async function fetchStatusViaExec() {
-  const exec = await awaitExec();
-  const b64 = await exec('base64 -w0 /data/local/tmp/atria_status.json');
+  // v3.4.59: execWithTimeout 内部走 execFn; 先 awaitExec 等通道就绪 (首屏 fetch 失败兜底时 execFn 可能仍为 null)。
+  // 加超时保护 — exec 桥接同步阻塞 JS 线程 (探针实测 base64 -w0 status.json 卡 500ms-6s),
+  // 裸 await 时 poll 整体挂起, 最终触发"采集失败"提示。超时后抛错让 poll 走重试, 不卡死面板。
+  await awaitExec();
+  const b64 = await execWithTimeout('base64 -w0 /data/local/tmp/atria_status.json', 8000);
   if (!b64 || !b64.trim()) throw new Error('status base64 empty');
-  const txt = decodeURIComponent(escape(atob(b64.trim())));
+  // v3.4.59: base64 完整性校验 — exec 桥接截断时长度 % 4 != 0, atob 会抛错或解出残缺 JSON;
+  // 提前拦截给出明确错误, poll 的 JSON 重试逻辑可据此走重试
+  const _b = b64.trim();
+  if (_b.length % 4 !== 0) throw new Error('status base64 truncated ' + _b.length);
+  const txt = decodeURIComponent(escape(atob(_b)));
   if (!txt || !txt.trim()) throw new Error('status decode empty');
   return txt;
 }
@@ -2106,14 +2549,42 @@ async function awaitExec() {
 
 // v3.2.34: 功能执行期间暂停轮询渲染 (exec 与 render 抢主线程是卡顿主因)
 let _fnBusy = false;
+// v3.4.59: poll 通道超时连续计数 — 单次 exec 阻塞抖动不报错, 连续 3 次才显示"采集失败"
+let _pollTimeoutStreak = 0;
 async function poll() {
-  if (_fnBusy) return;
+  // v3.4.56: 不再因 _fnBusy 跳过整个 poll — AI 诊断 3-15s 期间面板数据完全冻结
+  // (内存/CPU/温度卡片不更新), 用户体感"AI 诊断时面板卡死"。
+  // AI 请求走原生 fetch 不占 exec 通道也不阻塞渲染, poll 数据刷新与诊断可并行。
+  // 诊断渲染由 aiBusy 互斥 (renderAi 与 poll 的 render 各自原子), 不会打架。
   try {
     let out;
     try { out = await fetchStatus(); }
     // v3.4.16: fetch 失败回退改用 base64 单行读取 (exec 直跑 collect.sh 输出被截断且无 power 字段)
     catch (e1) { out = await fetchStatusViaExec(); }
-    const data = JSON.parse(out);
+    // v3.4.59: JSON 解析防护 — 竞态窗口: fetch/exec 读取瞬间 collect_loop 正在 mv 替换文件,
+    // 或 exec 桥接对 15KB 输出截断, 会拿到残缺 JSON ("Expected ',' or '}'" 类错误)。
+    // 残缺时重试一次 exec 通道 (base64 自带完整性校验: 长度 % 4 == 0), 仍失败才抛错。
+    let data = null;
+    try { data = JSON.parse(out); }
+    catch (eJson) {
+      dlog('poll', 'JSON 解析失败 (' + String(eJson.message || eJson).slice(0, 50) + ', out ' + String(out).length + ' 字符), 重试 exec 通道');
+      out = await fetchStatusViaExec();
+      data = JSON.parse(out);
+    }
+    if (!data || !data.mem) throw new Error('status json no mem');
+    // v3.4.40: 静态字段 sidecar 合并 — modules/labels 为空时从 sidecar 补
+    modsSidecarMaybeRefresh();
+    if (!data.modules || !data.modules.length) {
+      const sm = await fetchModsSidecar();
+      if (sm && sm.length) data.modules = sm;
+    }
+    if (!data.labels) {
+      const sl = await fetchLabsSidecar();
+      if (sl) data.labels = sl;
+    }
+    // v3.4.59: 数据成功拿到 — 清除超时计数与错误显示 (通道已恢复)
+    _pollTimeoutStreak = 0;
+    if (_r.err) { _r.err = ''; try { devEl.textContent = _r.dev || ''; } catch (_) {} }
     // v3.2.34: timestamp 未变化时跳过 analyze+render (页面切回前台时常遇到一串重复数据)
     if (latestData && data.timestamp === latestData.timestamp) return;
     // v3.2.28: 内容指纹去重 — timestamp 变了但数值完全相同 (后台采集频率高于面板) 也跳过, 避免无谓渲染
@@ -2130,21 +2601,35 @@ async function poll() {
       }).catch(() => {});
     }
     lastContentFp = fp;
-    latestData = data;
-    // v3.2.29: analyze+render 合并到 rAF 帧内执行, 避免长任务阻塞主线程 (滚动/动画更流畅)
-    // v3.2.71: analyze 拆出来前置yield — analyze 是纯 CPU (遍历 thermal/logcat/processes + 正则),
-    // 与 render 抢同一帧 16ms 预算; 先让一帧, analyze 跑在空闲期, render 独占下一帧
+    // v3.4.62: BUG 修复 — latestData 原先在 rAF 外赋值, 但 render 闭包内 _fillRow
+    // 读 latestData.media_playing 时 rAF 尚未执行, 拿到的是上一帧数据 (耳机标记错位一帧)。
+    // 现在 latestData 在 rAF 回调里、analyze/render 之前赋值, 保证 render 读到的是当帧 data。
     if (_renderRaf) cancelAnimationFrame(_renderRaf);
     _renderRaf = requestAnimationFrame(() => {
       _renderRaf = 0;
+      latestData = data;          /* v3.4.62: 移入 rAF, render 闭包可见当帧数据 */
+      window.__atriaLastData = data;
       // v3.2.34: analyze 与 render 独立 try, render 异常不能阻止数据更新与下次渲染
       try { analyze(data); } catch (e) {}
       // v3.2.71: analyze 后再让一帧, render 的 DOM 写入独占下一帧
       requestAnimationFrame(() => { try { render(data); } catch (e) {} });
     });
   } catch (e) {
-    dlog('poll', '采集失败: ' + String(e.message || e).slice(0, 120));
-    const errTxt = '采集失败 [' + apiMode + ']：' + String(e.message || e).slice(0, 40);
+    // v3.4.59: 细分错误类型 — exec 超时是通道临时阻塞 (重命令同步阻塞 JS 线程, 探针实测 500ms-6s),
+    // 下一轮 poll 多半能恢复; 只有持续失败才显示"采集失败"红字, 避免瞬时抖动刷屏。
+    const msg = String(e.message || e);
+    dlog('poll', '采集失败: ' + msg.slice(0, 120));
+    const isTimeout = msg.indexOf('执行超时') >= 0 || msg.indexOf('timeout') >= 0 || msg.indexOf('Failed to fetch') >= 0;
+    if (isTimeout) {
+      // 超时类: 连续 3 次才升级为报错, 单次抖动只记日志
+      _pollTimeoutStreak = (_pollTimeoutStreak || 0) + 1;
+      dlog('poll', '通道超时连续 ' + _pollTimeoutStreak + ' 次 (exec 同步阻塞), 下一轮自动重试');
+      if (_pollTimeoutStreak < 3) return;
+      _pollTimeoutStreak = 0;
+    } else {
+      _pollTimeoutStreak = 0;
+    }
+    const errTxt = '采集失败 [' + apiMode + ']：' + msg.slice(0, 40);
     if (errTxt !== _r.err) { _r.err = errTxt; devEl.textContent = errTxt; }
     if (toastFn) { try { toastFn('Atria: 采集失败'); } catch (_) {} }
   }
@@ -2283,12 +2768,26 @@ function buildAiPayload(d) {
   const logcat = (d.logcat || []).slice(0, 20).map(l => (l.tag || '') + ': ' + (l.msg || '')).join('\n').slice(0, 3000);
   // v3.2.71: top_processes 带上 pid — 动作白名单是 kill <pid>, 不给 pid 模型只能编造或放弃
   // v3.2.71: 带上 cpu_pct — CPU 型卡顿进程进得了 AI 视野
-  const procs = (d.processes || []).slice(0, 15).map(p =>
-    p.name + '(' + p.pid + ')=' + p.rss_mb + 'MB' + (typeof p.cpu_pct === 'number' ? ' cpu' + p.cpu_pct + '%' : '')
-  ).join(', ').slice(0, 1200);
+  // v3.4.75: 带 killable 标志 — 判定逻辑与 sanitizeAction 一致 (KILL_GUARD + 媒体保护),
+  // AI 建议前就知道哪些进程可杀。历史实据: am force-stop 宿主/operit 共 53 次全被 skip
+  const procs = (d.processes || []).slice(0, 15).map(p => {
+    const _k = _procKillable(p.name, p.pid);
+    return p.name + '(' + p.pid + ')=' + p.rss_mb + 'MB' + (typeof p.cpu_pct === 'number' ? ' cpu' + p.cpu_pct + '%' : '')
+      + (_k !== 'ok' ? ' [不可杀:' + (_k === 'guard' ? '系统保护' : _k === 'media' ? '正在播放' : '未知') + ']' : '');
+  }).join(', ').slice(0, 1400);
   const alertTxt = alerts.slice(0, 10).map(a => '[' + a.severity + '] ' + a.title + ': ' + a.detail).join('\n').slice(0, 1500);
   // v3.2.71: 补全温度/电池/存储/网络 — 原实现只喂 mem/cpu, 模型对温度电量等全靠猜
-  const th = (d.thermal || []).map(z => z.label + ':' + (+(z.temp || 0)).toFixed(1) + '°C').join(', ').slice(0, 500);
+  // v3.4.75: thermal 分级 — 原实现所有 zone 平铺, AI 有时抓到 batt(93.8°C 虚假偏高)
+  // 有时抓到 cpu(44°C), 判读不稳定。拆成 soc_trusted (cpu/gpu/chipset/skin/dsp/modem)
+  // 与 suspect (batt/other 常虚假偏高), 并标注 min 值让 AI 识别坏点 (other min=3.6°C)
+  const _thAll = (d.thermal || []);
+  const _TRUSTED_Z = { cpu: 1, gpu: 1, chipset: 1, skin: 1, dsp: 1, modem: 1, wifi: 1, camera: 1 };
+  const th = _thAll.filter(z => _TRUSTED_Z[String(z.label || '').toLowerCase()]).map(z =>
+    z.label + ':' + (+(z.temp || 0)).toFixed(1) + '°C'
+  ).join(', ').slice(0, 400);
+  const thSuspect = _thAll.filter(z => !_TRUSTED_Z[String(z.label || '').toLowerCase()]).map(z =>
+    z.label + ':' + (+(z.temp || 0)).toFixed(1) + '°C' + (typeof z.min === 'number' ? ' (min ' + (+z.min).toFixed(1) + '°C)' : '')
+  ).join(', ').slice(0, 300);
   const b = d.battery || {};
   const stArr = Array.isArray(d.storage) ? d.storage : [];
   const st = stArr.find(x => x.mount === '/data' || x.mount === '/storage/emulated') || stArr[0] || null;
@@ -2305,6 +2804,8 @@ function buildAiPayload(d) {
     (h.mem != null ? 'mem' + h.mem + '%' : '') + (h.cpu != null ? ' cpu' + h.cpu + '%' : '') + (h.temp != null ? ' temp' + h.temp + '°C' : '')
   ).filter(x => x).join(' -> ');
   return { device: d.device_id, os: 'Android', mem: d.mem, cpu: d.cpu, thermal: th,
+    // v3.4.75: 可疑温度 zone 单独字段 — batt/other 常虚假偏高, 不得作为过热证据
+    thermal_suspect: thSuspect || 'none',
     battery: { capacity: b.capacity, status: b.status, temperature: b.temperature },
     storage: st ? { percent: st.percent, total_gb: st.total_gb, free_gb: st.free_gb } : null,
     network_active: netOn || 'none',
@@ -2316,7 +2817,9 @@ function buildAiPayload(d) {
     // v3.2.98: 耗电来源 - 息屏掉电根因是 wakelock 持有者, 空字符串=无锁(健康)
     wakelock: d.wakelock || '',
     // v3.2.98: CPU Top - processes 按内存排序, 高CPU低内存的卡顿元凶在列表外
-    cpu_top: (d.cpu_procs || []).map(p => p.name + '(' + p.pid + ')=' + p.cpu + '%').join(', ').slice(0, 400) || '',
+    // v3.4.75: cpu_procs 截断名修复 — name 来自 comm (15 字符限制), 实测 "sistance.operit"
+    // 等截断名会让 AI 误判可杀性。先用 _fixTruncName 按 pid 从 processes 补全完整名
+    cpu_top: (d.cpu_procs || []).map(_fixTruncName).map(p => p.name + '(' + p.pid + ')=' + p.cpu + '%').join(', ').slice(0, 400) || '',
     // v3.2.98: 存储大户 - 三路 top5, 回答"存储怎么满了"需要知道是谁占了
     storage_hogs: d.du ? Object.keys(d.du).map(k =>
       k + ': ' + Object.entries(d.du[k]).sort((a, b) => b[1] - a[1]).slice(0, 3)
@@ -2333,16 +2836,50 @@ function buildAiPayload(d) {
       ((typeof r.dMem === 'number') ? ' mem' + (r.dMem > 0 ? '+' : '') + r.dMem + '%' : '') +
       ((typeof r.dTemp === 'number') ? ' temp' + (r.dTemp > 0 ? '+' : '') + r.dTemp + '°C' : '')
     ).join(' | '),
+    // v3.4.71: 动作有效率汇总 — 旧实现只喂原始记录, AI 每次都要自己从 dMem 数值重新推理,
+    // 推理模型经常忽略。实测 drop_caches measured dMem=0 (无效), AI 下轮仍建议 drop_caches。
+    // 直接给出"该动作最近 5 次的有效率", AI 一眼看到 20% 就不会重复建议
+    action_stats: _actionStats(_effectCache, 5),
     // v3.4.23: 30 分钟内已执行过的动作 — AI 不得重复建议 (需换策略或升档)
-    recent_actions: (_actionReg || []).filter(r => (Date.now() - (r.ts || 0)) < ACTION_COOLDOWN_MS && r.status === 'ok')
-      .map(r => r.action).join(' | '),
+    // v3.4.71: recent_actions 带状态 — 旧实现只喂 ok 的动作, AI 看不到"上次被保护名单拦了"
+    // 实测 kill 8350 三轮都被 skip (保护名单), AI 第四轮仍建议杀同一进程
+    // v3.4.77: 同一动作多条记录 (如先 pending 后 ok) 只保留最新一条, 避免 AI 看到重复条目
+    recent_actions: (() => {
+      const _ra = (_actionReg || []).filter(r => (Date.now() - (r.ts || 0)) < ACTION_COOLDOWN_MS && r.status !== 'cooldown');
+      const _seen = {};
+      const _out = [];
+      for (let i = _ra.length - 1; i >= 0; i--) {
+        const r = _ra[i];
+        if (!r || !r.action || _seen[r.action]) continue;
+        _seen[r.action] = 1;
+        _out.unshift(r.action + '[' + r.status + ']');
+      }
+      return _out.join(' | ');
+    })(),
     // v3.4.25: 电池健康 (soh/循环/功率) + 每应用流量排行
     batt_ext: d.batt_ext || null,
     net_stats: d.net_stats || null,
+    // v3.4.40: CPU 各核频率/负载 + 网络质量
+    cpu_cores: (d.cpu_cores || []).slice(0, 8).map(c => 'c' + c.core + ' ' + (c.freq_khz / 1000).toFixed(1) + 'GHz/' + c.util_pct + '%').join(' '),
+    netq: d.netq || null,
 // v3.4.32: 屏幕状态 / 通知 / 崩溃记录
      screen: d.screen || null,
      notifications: d.notifications || null,
-     crashes: d.crashes || null,
+     // v3.4.75: crashes 加 stale 标志 — DB_CACHE 每 120 周期 (~10 分钟) 才刷新,
+     // AI 历史里"相机崩溃爆发"幽灵持续数小时, 实测 dropbox 24h 内 0 条崩溃文件。
+     // updated_ts 超过 15 分钟即标记 stale, 提示 AI 不得据此判级
+     crashes: (() => {
+       const c = d.crashes;
+       if (!c || typeof c !== 'object') return null;
+       try {
+         const _uts = +c.updated_ts || 0;
+         if (_uts > 0) {
+           const _ageS = Math.max(0, Math.floor(Date.now() / 1000) - _uts);
+           if (_ageS > 900) return Object.assign({}, c, { stale: true, stale_age_mins: Math.round(_ageS / 60) });
+         }
+       } catch (_) {}
+       return c;
+     })(),
      // v3.4.32: 安全威胁检测 (设备管理器/辅助服务/通知监听/锁屏凭据/新增包)
      security: d.security || null };
 }
@@ -2450,10 +2987,24 @@ async function callAiRaw(msgs, maxTok) {
 }
 const AI_PROMPT = '你是安卓系统优化专家。分析设备状态、温度传感器、进程占用与日志，输出严格JSON：{"summary":"一句话总结","risk_level":"低/中/高","suggestions":["建议1","建议2"],"actions":["kill 1234","am force-stop com.xxx.app","drop_caches"]}。' +
     '【重要】不要输出任何思考过程、分析推导或解释性文字，直接输出上述JSON对象本身，第一个字符必须是 { 最后一个字符必须是 }。' +
+    // v3.4.71: 动作格式铁律前置 — 旧实现埋在 13 条编号列表尾部 (约 3000 字后),
+    // 实测 207 条诊断里 41 条输出非法格式 (echo schedutil 30 次 / freeze io 10 次 / pm disable 1 次),
+    // 全部被前端 ACT_OK 静默拒绝 (用户看到"已执行"实际没跑)。
+    // 前置 + 正反例, 让模型第一眼就内化格式
+    '【动作格式铁律 — 违反即被静默拒绝, 用户以为执行了实际没跑】actions 数组每个元素必须是以下字面格式之一, 不得变形: ' +
+    'kill <pid> | am force-stop <包名> | drop_caches | vm compact | vm swappiness <0-200> | vm restore | clean_cache <包名> | clean_cache_all [0-100] | scan_cache <关键字> | autostart block <包名> | autostart unblock <包名> | powersave on | powersave off | perf performance | perf powersave | perf schedutil | perf interactive | gpu cap <0-9> | gpu restore | freeze <包名> | unfreeze <包名> | whitelist add <包名> | whitelist remove <包名> | module enable <id> | module disable <id> | emergency_unblock freeze <包名> | emergency_unblock uninstall <包名> | emergency_unblock remove_admin <包名> | emergency_unblock clear_overlay <包名> | emergency_unblock lockscreen_clear | emergency_unblock disable_accessibility [包名]。' +
+    '【正例】"perf schedutil" "kill 12345" "clean_cache com.tencent.mm" "gpu cap 5"。' +
+    '【反例 — 全部会被拒绝】"echo schedutil > /sys/.../scaling_governor" (裸 shell) "freeze io.github.xxx" (freeze 只跟包名) "pm disable com.xxx" (不在白名单) "kill system_server" (系统进程)。' +
     // v3.2.82: 回答要简短 — summary 上限 80 字, suggestions 每条上限 30 字, 最多 3 条
     '【字数限制】summary 必须 ≤80 字, 只说结论与最关键的一句话依据; suggestions 每条 ≤30 字、最多 3 条, 只写动作不说原因; 宁可少说不要多说。' +
     '数据说明：top_processes 格式为 "进程名(pid)=占用MB cpu%"，kill 动作只能引用其中出现的真实 pid，禁止编造。' +
-    'thermal 为各传感器读数（label:温度°C）；判读参考：CPU/GPU 55°C 以下正常，充电芯片 charger 60°C 以下正常，skin 皮肤温度 >45°C 手感发烫；batt 为封装温度常虚假偏高，other 为主板综合温度，二者不要计作过热证据。' +
+    'thermal 为各传感器读数（label:温度°C）；判读参考（与本地规则引擎 TEMP_RULES 对齐）：CPU/GPU 58°C 以下正常（骁龙 8 Gen 3 轻载 48-52°C 属常态），60-65°C 为轻负载正常区间不要判为过热，>70°C 才算真过热；充电芯片 charger 65°C 以下正常；skin 皮肤温度 >45°C 手感发烫；batt 为封装温度常虚假偏高，other 为主板综合温度，二者不要计作过热证据。' +
+    // v3.4.75: thermal_suspect 字段说明 — 可疑 zone 单独列出
+    'thermal_suspect 为不可信的温度传感器（batt 封装温度/other 主板综合温度，常虚假偏高且伴坏点），【硬性禁令】thermal_suspect 里的数值一律不得作为过热或风险判级依据，过热只看 thermal 字段（cpu/gpu/chipset/skin）。' +
+    // v3.4.75: killable 标志说明 — 进程列表里 [不可杀:系统保护] 的进程不得建议 kill/am force-stop/freeze
+    'top_processes 每个进程带 [不可杀:系统保护] 或 [不可杀:正在播放] 标志（无标志=可杀）；【硬性禁令】带不可杀标志的进程，kill / am force-stop / freeze / unfreeze 动作一律不得建议（会被前端拦截，属于无效动作空转）；建议杀进程时只从无标志的进程里选。' +
+    // v3.4.75: crashes stale 说明
+    'crashes 若带 stale:true 表示崩溃数据已过期（采集缓存超过 15 分钟未刷新），stale 状态下的崩溃/爆发记录不得作为风险判级或动作依据，summary 里也不要提崩溃。' +
     'battery.capacity 为电量百分比，storage.free_gb 为剩余可用空间。' +
     // v3.2.97: kernel 字段说明
     'kernel 为内核压力数据（部分设备可能缺失）：psi.s10/s300 为内存阻塞率百分比（10秒/300秒均值），' +
@@ -2471,8 +3022,11 @@ const AI_PROMPT = '你是安卓系统优化专家。分析设备状态、温度�
     'media_playing 为正在播放音频/音乐的应用包名数组（空数组=无播放）；【硬性禁令】kill 与 am force-stop 动作绝不允许针对 media_playing 里的应用，建议里也不得出现它们；用户正在听音乐/看视频，杀掉会中断播放。' +
     // v3.4.23: 动作效果回流 + cooldown — AI 根据上次动作的实际结果调整策略
     'action_effects 为最近执行动作的实测效果（动作名 [状态] 内存变化% 温度变化°C，measured=执行后 60s 实测）：dMem 为负=有效释放了内存，接近 0 或为正=该动作无效。' +
+    // v3.4.71: 动作有效率汇总 — 直接给出"该动作最近 5 次的释放成功率"
+    // 旧实现只喂原始 dMem 数值, 推理模型经常忽略; 实测 drop_caches dMem=0 无效, AI 下轮仍建议
+    'action_stats 为动作有效率汇总（形如 "kill 12345: 40%(2/5)"，百分比为最近 5 次实测中成功释放内存的比例）：成功率 <30% 的动作不得再次建议，需换策略（kill 无效试 freeze 或 autostart block，drop_caches 无效试 vm compact 或 clean_cache）。' +
     '【策略规则】动作无效时不得重复建议同一动作；某类动作连续无效时换策略（kill 无效则试 freeze 或 autostart block，清缓存无效则试 drop_caches）。' +
-    'recent_actions 为 30 分钟内已成功执行过的动作；【硬性禁令】不得重复建议 recent_actions 里出现的动作，需换其他方案或升档处理。' +
+    'recent_actions 为 30 分钟内已执行过的动作（格式 "动作[状态]"，状态 ok=成功 skip=被保护名单拦截 fail=失败 pending=已建议但待用户确认未执行）；【硬性禁令】不得重复建议 recent_actions 里出现的动作（无论状态如何——skip 说明该进程受保护，再建议还是被拦；fail 说明上次没执行成功；pending 说明已建议过正等用户确认，重复建议无意义），需换其他方案或升档处理。' +
     // v3.4.25: 电池增强 + 流量排行
     'batt_ext 为电池健康数据：soh 为健康度百分比（< 80 为明显衰减，< 70 建议换电池），cycle_count 为充电循环次数，health 为 BMS 固件健康判断（Good/Fair/Poor），power_w 为实时功率（正=充电中，负=放电中），model 为电池型号；电池类问题必看此字段。' +
     'net_stats 为每应用累计流量排行（MB，包名→用量）：流量异常/后台偷流量类问题必看，引用具体应用名。' +
@@ -2504,6 +3058,9 @@ const AI_PROMPT = '你是安卓系统优化专家。分析设备状态、温度�
     // v3.4.9: AI 可执行设定类动作 — 白名单管理
     '13. whitelist add <包名> — 加入本模块防杀白名单（之后该包不会被本模块的 kill/force-stop 误杀；注意: 这不是系统 Doze 白名单; 动作会在返回后立即自动执行, summary 用"将加入/将移出"不要用"已加入/已移出"）; whitelist remove <包名> — 移出白名单.' +
     '动作选择原则：优先治本（freeze / autostart block / clean_cache）而非治标（kill）；内存问题先 drop_caches 或 vm compact；发热问题首推 gpu cap 锁中低档或 perf schedutil；不确定时 actions 返回空数组只给建议。' +
+    // v3.4.71: 旧的尾部格式铁律段已前置到 prompt 开头 (正反例驱动),
+    // 此处只保留禁止格式补充, 删除重复的 30 行枚举减少 prompt 冗余
+    '【禁止格式】禁止输出 echo/sysctl/chmod/rm 等裸 shell 命令 (如 "echo schedutil > /sys/.../scaling_governor" 必须写成 "perf schedutil"); 禁止编造 pid; 禁止输出解释性文字。' +
     '用户意图识别（必须落到 actions, 不要只给文字建议）: “把X加白名单/别杀X/保护X” → whitelist add X; “X自启被关/允许X后台/X开不了自启” → autostart unblock X; “X耗电/偷跑后台” → autostart block X 或 freeze X; “清X缓存/X占空间” → clean_cache X.' +
     'suggestions 只写面板可执行或用户立即可做的动作, 禁止“前往设置-电池-自启动手动开启”这类绕过面板的步骤; 厂商私有自启动管理(ColorOS/MIUI)最多在 summary 一句话带过, 不作为主要建议.' +
     '如不需执行任何动作，actions 返回空数组 []；suggestions 最多 5 条。' +
@@ -2627,11 +3184,14 @@ function renderOptimizeResult(res) {
   // v3.2.72: 同样只重写内容区，保留下拉框与追问框
   ensureAiContent();
   const el = document.getElementById('aiContent');
-  const cls = res.error ? 'red' : (res.freed_pct > 0 ? 'green' : 'yellow');
-  const badge = res.error ? '优化失败' : '一键优化完成';
+  // v3.4.68: killed=0 时显示"系统整洁"而不是"无明显释放" (大进程全在保护名单 = 正确行为)
+  const killed = res.killed || 0;
+  const cls = res.error ? 'red' : (killed > 0 ? 'green' : 'yellow');
+  const badge = res.error ? '优化失败' : (killed > 0 ? '一键优化完成' : '✅ 系统整洁, 无需清理');
   const detail = res.error ? res.error :
-    '内存 ' + res.before + '% → ' + res.after + '%' + (res.freed_pct > 0 ? '（释放 ' + res.freed_pct + '%）' : '（无明显释放）') +
-    '；结束 ' + (res.killed || 0) + ' 个进程，保护跳过 ' + (res.skipped_protected || 0) + ' 个';
+    '内存 ' + res.before + '% → ' + res.after + '%' + (res.freed_pct > 0 ? '（释放 ' + res.freed_pct + '%）' : '（缓存会自动回填, 属正常）') +
+    '；结束 ' + killed + ' 个进程，保护跳过 ' + (res.skipped_protected || 0) + ' 个' +
+    (killed === 0 ? '；大内存进程均在保护名单内（system_server / SystemUI / 宿主等）, 无可安全结束的进程' : '');
   el.innerHTML =
     '<div class="a-top"><span class="a-title ' + cls + '">' + badge + '</span>' +
     '<span class="a-time">' + safeTime() + '</span></div>' +
@@ -2674,6 +3234,35 @@ async function runOptimize() {
     if (ob) { ob.disabled = false; ob.style.opacity = ''; }
   }
 }
+// v3.4.71: 动作有效率汇总 — 从 effect 记录算"该动作最近 N 次的释放成功率"
+// measured 记录带 dMem: 负值=有效释放, 0/正=无效。成功率 = dMem<0 的比例
+// 返回形如 "drop_caches: 20%(1/5)" 的字符串数组, 喂给 AI payload 的 action_stats
+function _actionStats(rows, perN) {
+  try {
+    const _r = Array.isArray(rows) ? rows : [];
+    if (!_r.length) return [];
+    const _n = Math.max(1, perN || 5);
+    const _byAct = {};
+    for (let i = _r.length - 1; i >= 0; i--) {
+      const r = _r[i];
+      if (!r || !r.action) continue;
+      // 只统计 measured (实测过效果的), ok/skip/fail 无 dMem 不参与有效率计算
+      if (r.status !== 'measured' || typeof r.dMem !== 'number') continue;
+      const k = String(r.action).split(/\s+/).slice(0, 2).join(' ');   // kill 12345 → kill 12345; 但 "自动优化全部动作" 保持原样
+      if (!_byAct[k]) _byAct[k] = [];
+      if (_byAct[k].length < _n) _byAct[k].push(r.dMem);
+    }
+    const out = [];
+    for (const k in _byAct) {
+      const arr = _byAct[k];
+      if (arr.length < 2) continue;   // 只 1 次样本不报, 避免偶发被当成规律
+      const ok = arr.filter(v => v < 0).length;
+      out.push(k + ': ' + Math.round(ok * 100 / arr.length) + '%(' + ok + '/' + arr.length + ')');
+    }
+    return out.slice(0, 6);
+  } catch (e) { return []; }
+}
+
 // v3.2.71: 执行后效果验证 — 动作执行后 60 秒对比前后关键指标, 告诉用户这个动作有没有效
 function snapshotMetrics() {
   const d = latestData;
@@ -2746,7 +3335,8 @@ function ensureAiContent() {
     }
   } catch (e) {}
 }
-function showChatBar() { try { document.getElementById('aiChatBar').style.display = 'flex'; } catch (e) {} }
+// v3.4.58: 已移除自动聚焦 — 诊断完成后不再 focus 追问框, 避免平板上软键盘遮挡结果
+// 用户想追问时点击输入框即可主动聚焦弹键盘
 // v3.2.73: 场景下拉填充 — 用 try/catch 兜底, 并在 DOM 就绪后填充 (容错: AI_TEMPLATES 引用失败不能影响其他初始化)
 // v3.2.89: 自定义弹层版 — 填充 label + 点击开/关弹层, 不再用原生 select
 function fillAiTplSel() {
@@ -2808,9 +3398,26 @@ function closeAiTplPop() {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAiTplPop(); });
 document.addEventListener('DOMContentLoaded', fillAiTplSel);
 
+// v3.4.40: 追问排队 — runAi(自动诊断) 锁住期间不丢弃用户输入, 存起来等锁释放后自动发送
+let _pendingFollowup = null;
+function _flushPendingFollowup() {
+  if (_pendingFollowup && !aiBusy && !_fnBusy) {
+    const q = _pendingFollowup;
+    _pendingFollowup = null;
+    try { dlog('followup', '排队追问自动发送: ' + q.slice(0, 40)); } catch (_) {}
+    askFollowup(q);
+  }
+}
 async function askFollowup(question) {
   if (!latestData) { toastFn && toastFn('Atria: 暂无数据'); return; }
-  if (aiBusy || _fnBusy) { toastFn && toastFn('Atria: 正在分析中，请稍候'); return; }
+  // v3.4.40: 排队而非丢弃 — aiBusy 期间把问题存起来, 输入框提示"已排队"
+  if (aiBusy || _fnBusy) {
+    _pendingFollowup = String(question || '').trim();
+    const _inp = document.getElementById('aiChatInput');
+    if (_inp) { _inp.value = ''; _inp.placeholder = '已排队：' + _pendingFollowup.slice(0, 30) + '（当前任务结束后自动发送）'; }
+    toastFn && toastFn('Atria: 已排队，任务结束后自动发送');
+    return;
+  }
   if (!_aiMessages) { toastFn && toastFn('Atria: 请先点立即诊断'); return; }
   // v3.2.81: 空内容防护 (按钮点击路径可能拿到空串)
   if (!String(question || '').trim()) { toastFn && toastFn('Atria: 追问内容为空'); return; }
@@ -2877,10 +3484,22 @@ async function askFollowup(question) {
   }
 }
 async function runAutoOptimize(res) {
-  const acts = (res.actions || []).map(sanitizeAction).filter(x => !!x);
-  if (!acts.length) return;
+  // v3.4.53: 自动优化安全闸 — 自动执行只对"可逆且非杀进程"类动作开放。
+  // 背景: AI 在诊断历史里反复建议 am force-stop 宿主/kill 高 CPU 进程, 高风险时自动执行
+  // 会未经用户确认就杀进程 (含误杀宿主的风险 — 已修 KILL_GUARD 截断绕过, 但多一层防御)。
+  // 策略: kill/am force-stop/freeze/unfreeze/module 类需用户手动点确认; drop_caches/vm/clean_cache/
+  // gpu cap/perf/autostart/powersave/whitelist 等设定类自动执行。
+  const AUTO_SAFE = /^(drop_caches|vm (compact|swappiness|restore)|clean_cache( |$|_all)|scan_cache |autostart (block|unblock) |powersave (on|off)|perf (performance|powersave|schedutil|interactive)|gpu (cap |restore)|whitelist (add|remove) )/;
+  const allActs = (res.actions || []).map(sanitizeAction).filter(x => !!x);
+  const acts = allActs.filter(a => AUTO_SAFE.test(a));
+  const needConfirm = allActs.filter(a => !AUTO_SAFE.test(a));
+  if (acts.length === 0 && needConfirm.length === 0) return;
   const el = document.getElementById('aiActions');
-  if (el) el.innerHTML = '<div class="empty">⏳ 高风险，自动优化执行中...</div>';
+  if (el && acts.length) el.innerHTML = '<div class="empty">⏳ 高风险，自动优化执行中...</div>';
+  if (el && needConfirm.length) {
+    el.innerHTML += '<div class="a-sug" style="color:#facc15">⚠ 需手动确认: ' + needConfirm.map(a => esc(a)).join(' / ') + ' (杀进程/冻结类动作不自动执行)</div>';
+  }
+  if (!acts.length) { renderActions(el, needConfirm); return; }
   const _snap = snapshotMetrics();
   const outs = [];
   for (const a of acts) {
@@ -2888,8 +3507,10 @@ async function runAutoOptimize(res) {
     catch (e) { outs.push({ action: a, status: 'fail', msg: String(e.message || e).slice(0, 60) }); }
     scheduleVerify(snapshotMetrics(), a);
   }
+  // v3.4.53: 需确认的动作以待执行按钮形式展示 (renderActions 只绑定点击, 不自动跑)
+  if (needConfirm.length) renderActions(el, needConfirm);
   const okN = outs.filter(r => r.status === 'ok').length;
-  if (el) {
+  if (el && outs.length) {
     el.innerHTML = outs.map(r => {
       const color = r.status === 'ok' ? '#4ade80' : r.status === 'skip' ? '#facc15' : '#f87171';
       return '<div class="a-sug" style="color:' + color + '">' +
@@ -2916,7 +3537,9 @@ async function runAi(force) {
   if (aiBusy || _fnBusy) return;
   aiBusy = true; _fnBusy = true;
   // v3.2.59: 成功才更新 lastAiTime — 原实现调用前就标记, 失败后想立刻重试得等满 60s
-  ensureAiContent(); document.getElementById('aiContent').innerHTML = '<div class="empty">AI 分析中...</div>';
+  // v3.4.56: 等待提示明确告知推理模型特性 — 实测 Atria-Dawn-Preview 思考链 2.6-15s
+  // 波动, 用户不知道"为什么这么久"是最大的体感问题
+  ensureAiContent(); document.getElementById('aiContent').innerHTML = '<div class="empty">AI 推理模型思考中（通常 3-15 秒）...</div>';
   try {
     let res = null, lastErr = null;
     // v3.2.83: 等待期间动态进度提示, 不再干等静态文字
@@ -2976,7 +3599,13 @@ async function runAi(force) {
       renderAi(res, false);
       renderActions(document.getElementById('aiActions'), res.actions || []);
       appendDiagHist(res, res.actions || []);
-      showChatBar();
+      // v3.4.77: pending 动作登记 — 建议了但本轮不会自动执行的动作 (kill/force-stop/freeze 等
+      // 需用户确认类, 或 risk 非"高"未触发 runAutoOptimize) 记录到 action_reg + action_effects,
+      // 下轮 payload 的 recent_actions 会显示 "kill 12345[pending]", prompt 硬性禁令生效,
+      // AI 不再重复建议同一未执行动作 (v3.4.75 后的新型空转: 15:12 两轮都建议 kill 20910,
+      // risk=低/中从未执行, action_reg 无记录, AI 看不到"已建议过")
+      _recordPendingActions(res.actions || [], res.risk_level);
+      // v3.4.58: 不再 showChatBar() — 诊断完成后不自动聚焦追问框, 避免软键盘遮挡结果
       if (res.risk_level === '高') {
         if (document.getElementById('aiAuto').checked) runAutoOptimize(res);
         alerts.unshift({ severity: '高', title: 'AI 高风险', detail: res.summary || '',
@@ -2996,12 +3625,16 @@ async function runAi(force) {
     const res = diagnoseLocal(latestData);
     const reason = String(e.message || e).slice(0, 40);
     res.summary = '本地诊断（AI 不可用：' + reason + '）：' + res.summary;
-    showChatBar();
+    // v3.4.58: 不再 showChatBar() — 降级诊断同样不自动聚焦追问框, 避免软键盘遮挡结果
     renderAi(res, true);
     renderActions(document.getElementById('aiActions'), res.actions || []);
     if (res.risk_level === '高' && document.getElementById('aiAuto').checked) runAutoOptimize(res);
   }
-  finally { aiBusy = false; _fnBusy = false; }
+  finally {
+    aiBusy = false; _fnBusy = false;
+    // v3.4.40: 唤醒排队的追问 — 自动诊断结束后用户的问题自动发出
+    _flushPendingFollowup();
+  }
 }
   // v3.2.34: 本地诊断入口 (与 AI 路径分开, 不消耗 API 额度)
   // v3.2.28: lastLocalTime/localBusy 提升为全局 (按钮 handler 需读取防重复)
@@ -3064,10 +3697,13 @@ async function runAi(force) {
       el.innerHTML += '<div style="margin-top:8px">' + rows.map(x => {
         const i = x.lastIndexOf(':');
         const pkg = x.slice(0, i), mb = x.slice(i + 1);
+        // v3.4.53: onclick 属性上下文安全编码 — esc() 不转义单引号, 含 ' 的目录名可闭合
+        // onclick 字符串造成 XSS (scan_cache 的 pkg 来自 du 通配结果, 非白名单源头)
+        const pkgAttr = esc(pkg).replace(/'/g, '&#39;');
         return '<div class="a-sug" style="display:flex;justify-content:space-between;align-items:center">' +
           '<span style="font-family:monospace">' + esc(pkg) + '</span>' +
           '<span>' + mb + '</span>' +
-          '<button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" onclick="cleanCacheApp(\'' + pkg + '\')">清理</button></div>';
+          '<button class="btn btn-ghost" style="padding:2px 10px;font-size:12px" onclick="cleanCacheApp(\'' + pkgAttr + '\')">清理</button></div>';
       }).join('') + '</div>';
     }
     } finally { _fnBusy = false; }
@@ -3124,7 +3760,7 @@ document.getElementById('optBtn').addEventListener('click', () => {
   if (aiBusy) { toastFn && toastFn('Atria: 正在执行优化'); return; }
   runOptimize();
 });
-// v3.4.34: 玻璃预览页(glass/glass3.html)已整体删除, 入口按钮与跳转逻辑一并移除
+// v3.4.40: 玻璃预览页(glass/glass3.html)已整体删除, 入口按钮与跳转逻辑一并移除
 document.getElementById('aiCfgBtn').addEventListener('click', async () => {
   const urlEl = document.getElementById('cfgUrl');
   const keyEl = document.getElementById('cfgKey');
@@ -3441,7 +4077,7 @@ aiAutoEl.addEventListener('change', e => {
 <div id="detailModal" class="modal" style="display:none">
   <div class="modal-card" style="max-width:460px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <h2 style="margin:0" id="dmTitle">详情</h2>
+      <h2 style="margin:0" id="dmTitle">实时详情</h2>
       <button id="dmCloseBtn" class="btn btn-ghost" style="padding:2px 10px;font-size:12px"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
     <div id="dmBody" style="font-size:13px;color:#cbd5e1;line-height:1.9"></div>
@@ -3454,16 +4090,24 @@ aiAutoEl.addEventListener('change', e => {
       <h2 style="margin:0"><svg class="ic"><use href="#i-settings"/></svg>设置</h2>
       <button id="settingsCloseBtn" class="btn btn-ghost" style="padding:2px 10px;font-size:12px"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
+    <!-- v3.4.47: 品牌锚点 - 设置弹窗顶部品牌行 -->
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:12px;border-radius:12px;background:linear-gradient(160deg, rgba(30,41,59,.55), rgba(15,23,42,.35));border:1px solid rgba(148,163,184,.14)">
+      <span class="brand-badge" style="width:30px;height:30px;border-radius:9px"><svg class="ic"><use href="#i-gauge-badge"/></svg></span>
+      <div style="display:flex;flex-direction:column;gap:1px;min-width:0">
+        <span style="font-size:14px;font-weight:700;letter-spacing:-.02em;color:#f1f5f9">Atria Monitor</span>
+        <span style="font-size:11px;color:#64748b;letter-spacing:.04em">始终值守 · Always on guard</span>
+      </div>
+    </div>
+    <!-- v3.4.48: 技术信息区 - 路径与版本下沉, 品牌区更干净 -->
+    <div style="margin-top:10px;color:#64748b;font-size:12px">
+      版本: <span id="cfgVer"></span><br>
+      日志文件: /data/local/tmp/atria_panel.log<br>
+      状态文件: /data/local/tmp/atria_status.json<br>
+      历史文件: /data/adb/atria_history.jsonl
+    </div>
     <div style="font-size:13px;color:#94a3b8;line-height:2">
       <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="cfgAiAuto2"> 打开面板时自动 AI 诊断</label>
       <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="cfgVerbose"> 详细日志 (记录每次采集)</label>
-      <div style="margin-top:10px;color:#64748b;font-size:12px">
-        版本: <span id="cfgVer"></span><br>
-        日志文件: /data/local/tmp/atria_panel.log<br>
-        状态文件: /data/local/tmp/atria_status.json<br>
-        历史文件: /data/adb/atria_history.jsonl
-      </div>
-      <!-- v3.2.34: 白名单管理 -->
       <div style="margin-top:14px;border-top:1px solid #1e293b;padding-top:10px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <b style="font-size:13px;display:flex;align-items:center;gap:6px"><svg class="ic"><use href="#i-shield"/></svg>保护白名单</b>
@@ -3997,10 +4641,155 @@ async function ensureCandidateIcons(pkgs, box) {
         rows += row('监控项', '设备管理器 / 辅助服务 / 通知监听 / 锁屏凭据 / 新增包');
       } else rows += row('安全', '无数据');
       return rows;
-    }
+    },
+    // v3.4.40: 安装拦截详情 (日志异步加载, 同 pw 卡片 labels 模式)
+    inst: function (d) {
+      var rows = sub("安装拦截") + row("状态", "监听新装应用 (logcat 事件 + 4 分钟兜底扫描)");
+      if (window.__atriaInstLog) {
+        var log = window.__atriaInstLog || [];
+        if (!log.length) {
+          rows += row("安装日志", "暂无记录");
+        } else {
+          log.slice(0, 20).forEach(function (e) {
+            var lvl = { high: "⚠ 高危", med: "⚠ 中危", low: "正常" }[e.level] || e.level;
+            var act = { frozen: "已冻结", alert_only: "仅告警", pass: "放行", freeze_failed: "冻结失败" }[e.action] || e.action;
+            var t = "--";
+            try { t = new Date((e.ts || 0) * 1000).toLocaleString(); } catch (er) {}
+            rows += row(String(e.pkg || "?").slice(0, 40), lvl + " / " + act + " / " + t);
+            if (e.reasons) rows += row("原因", String(e.reasons).slice(0, 80));
+          });
+        }
+      } else {
+        rows += row("安装日志", "加载中...");
+      }
+      return rows;
+    },
+    // v3.4.40: 告警历史详情 — 点击告警卡片查看历史 jsonl (最近 60 条)
+    alert: function (d) {
+      var rows = '';
+      var cur = (d.__alerts || []);
+      if (cur.length) rows += row('当前告警', cur.length + ' 条 (下方为历史)');
+      if (window.__atriaAlertHist) {
+        var log = window.__atriaAlertHist || [];
+        if (!log.length) {
+          rows += row('历史记录', '暂无');
+        } else {
+          log.slice(0, 30).forEach(function (e) {
+            var sev = { '高': '⚠ 高', '中': '⚠ 中', '低': '低' }[e.severity] || e.severity;
+            var t = String(e.time || '--');
+            rows += row(t + ' [' + sev + ']', String(e.title || '?').slice(0, 40));
+            if (e.detail) rows += row('→', String(e.detail).slice(0, 60));
+          });
+        }
+      } else {
+        rows += row('告警历史', '加载中...');
+      }
+      return rows;
+    },
+    // v3.4.40: CPU 核心详情 — 各核频率 + 差分利用率
+    cpucores: function (d) {
+      var rows = '';
+      var cs = d.cpu_cores || [];
+      if (!cs.length) return row('CPU 核心', ' waiting (60s 采样周期)');
+      // 按大小核分组: 0-1 小核, 2-4 中核, 5-6 大核, 7 超大核
+      var groups = { '小核 (0-1)': [], '中核 (2-4)': [], '大核 (5-6)': [], '超大核 (7)': [] };
+      cs.forEach(function (c) {
+        var g = c.core <= 1 ? '小核 (0-1)' : (c.core <= 4 ? '中核 (2-4)' : (c.core <= 6 ? '大核 (5-6)' : '超大核 (7)'));
+        groups[g].push(c);
+      });
+      Object.keys(groups).forEach(function (g) {
+        var list = groups[g];
+        if (!list.length) return;
+        var txt = list.map(function (c) {
+          return '核' + c.core + ' ' + (c.freq_khz / 1000).toFixed(1) + 'GHz ' + c.util_pct + '%';
+        }).join(' · ');
+        rows += row(g, txt);
+      });
+      return rows;
+    },
+    // v3.4.40: 网络质量详情 — 延迟/流量/连接数
+    netq: function (d) {
+      var n = d.netq || {};
+      if (!n || !n.rtt_ms) return row('网络质量', '等待采样 (2 分钟周期)');
+      var rows = '';
+      rows += row('网络延迟', n.rtt_ms + ' ms' + (n.rtt_ms > 100 ? ' ⚠ 偏高' : ' 正常'));
+      rows += row('累计接收', (n.rx_bytes / 1024 / 1024).toFixed(0) + ' MB');
+      rows += row('累计发送', (n.tx_bytes / 1024 / 1024).toFixed(0) + ' MB');
+      rows += row('socket 数', n.sockets + ' 个');
+      return rows;
+    },
+    // v3.4.66: 广告屏蔽详情 — 信息行 + 四个操作按钮 (关闭屏蔽/更新规则/评估规则源/临时关闭)
+    // 数据: 异步加载 (openDetail 的 ad 分支), 不依赖 latestData
+    ad: function (d) {
+      var st = window.__atriaAdState || null;
+      var isOn = !!(st && st.isOn);
+      var rows = '';
+      rows += row('状态', isOn ? '✅ 已启用' : '⏸ 未挂载');
+      rows += row('规则数', st && st.hosts_count ? (st.hosts_count + ' 条') : '无');
+      if (st && st.updated_ts) rows += row('最近更新', new Date(+st.updated_ts * 1000).toLocaleString('zh-CN'));
+      if (st && st.sources_fail) rows += row('失败源', esc(st.sources_fail));
+      if (st && st.best_source) rows += row('推荐源', esc(st.best_source));
+      rows += row('白名单', '/data/adb/atria_ad_whitelist.conf');
+      rows += row('规则源', '/data/adb/atria_ad_sources.conf');
+      rows += row('原理', 'hosts 层屏蔽, 域名→0.0.0.0');
+      // v3.4.72: 开机自启开关 — auto_start 字段在 state 文件, service.sh 开机时读取并自动 apply
+      var autoStart = 0;
+      try { autoStart = (window.__atriaAdState && window.__atriaAdState.auto_start) ? 1 : 0; } catch (e) {}
+      rows += '<div class="dm-row"><span class="dm-k">开机自启</span><span class="dm-v">' +
+        '<label style="display:inline-flex;align-items:center;cursor:pointer;user-select:none">' +
+        '<input type="checkbox" id="dmAdAutoStart" ' + (autoStart ? 'checked' : '') + ' style="margin-right:6px;vertical-align:middle">' +
+        '<span style="font-size:13px;color:#94a3b8">' + (autoStart ? '已开启, 开机自动挂载' : '关闭, 开机不启动') + '</span></label></div>';
+      // v3.4.67: 操作按钮 — 唯一入口 (外部控制条已删)
+      rows += '<div class="dm-act">'
+        + '<button id="dmAdToggleBtn" class="btn btn-ghost">' + (isOn ? '关闭广告屏蔽' : '启用广告屏蔽') + '</button>'
+        + '<button id="dmAdUpdateBtn" class="btn btn-ghost">更新规则</button>'
+        + '<button id="dmAdBenchBtn" class="btn btn-ghost">评估规则源</button>'
+        + '</div>'
+        + '<div id="dmAdMsg" class="dm-msg">更新规则约 1-3 分钟, 可在进度中关闭弹窗</div>';
+      return rows;
+    },
   };
 
-  var NAMES = { mem: '内存详情', cpu: 'CPU 详情', temp: '温度详情', batt: '电池详情', store: '存储详情', net: '网速详情', wl: '耗电来源详情', pw: '耗电排行详情', sys: '系统状态详情' };
+  var NAMES = { mem: '内存详情', cpu: 'CPU 详情', temp: '温度详情', batt: '电池详情', store: '存储详情', net: '网速详情', wl: '耗电来源详情', pw: '耗电排行详情', sys: '系统状态详情', inst: '安装拦截', alert: '告警历史', cpucores: 'CPU 核心', netq: '网络质量', ad: '广告屏蔽' };
+
+
+  // v3.4.40: 安装拦截——打开 inst 卡片时异步加载安装日志 (base64 单行读, 同 labels 模式)
+  // v3.4.40: 告警历史异步加载 (base64 单行读, 同 inst 模式; 复用 jsonl 尾部 60 条)
+  function loadAlertHistLog(exec) {
+    if (!exec || window.__atriaAlertHist) return Promise.resolve(null);
+    window.__atriaAlertHist = [];
+    return Promise.resolve(exec('base64 -w0 /data/adb/atria_alert_history.jsonl')).then(function (out) {
+      var b64 = String(out || '').replace(/\s+/g, '');
+      if (!b64) return null;
+      var txt = decodeURIComponent(escape(atob(b64)));
+      var arr = [];
+      String(txt).split(/\r?\n/).forEach(function (line) {
+        line = line.trim();
+        if (!line) return;
+        try { arr.push(JSON.parse(line)); } catch (e) {}
+      });
+      window.__atriaAlertHist = arr.slice(-60).reverse();
+      return window.__atriaAlertHist;
+    }).catch(function () { return null; });
+  }
+
+  function loadInstLog(exec) {
+    if (!exec || window.__atriaInstLog) return Promise.resolve(null);
+    window.__atriaInstLog = [];
+    return Promise.resolve(exec('base64 -w0 /data/local/tmp/atria_install_log.jsonl')).then(function (out) {
+      var b64 = String(out || '').replace(/\s+/g, '');
+      if (!b64) return null;
+      var txt = decodeURIComponent(escape(atob(b64)));
+      var arr = [];
+      String(txt).split(/\r?\n/).forEach(function (line) {
+        line = line.trim();
+        if (!line) return;
+        try { arr.push(JSON.parse(line)); } catch (e) {}
+      });
+      window.__atriaInstLog = arr.slice(-30).reverse();
+      return window.__atriaInstLog;
+    }).catch(function () { return null; });
+  }
 
   function openDetail(card) {
     var fn = builders[card];
@@ -4035,7 +4824,193 @@ async function ensureCandidateIcons(pkgs, box) {
         }).catch(function () {});
       } catch (e) {}
     }
+    // v3.4.40: 安装拦截—— inst 卡片首次打开时加载安装日志
+    if (card === 'inst') {
+      try {
+        var execP2 = (typeof awaitExec === 'function') ? awaitExec() : Promise.resolve(window.__atriaExec);
+        Promise.resolve(execP2).then(function (exec2) {
+          if (!exec2) return null;
+          return loadInstLog(exec2);
+        }).then(function (log) {
+          if (modal.style.display === 'flex') {
+            try { body.innerHTML = fn(window.__atriaLastData || {}); } catch (e) {}
+          }
+        }).catch(function () {});
+      } catch (e) {}
+    }
+    // v3.4.66: 广告屏蔽——打开时异步加载状态 (hosts 行数 + state json), 完成后渲染按钮
+    if (card === 'ad') {
+      try {
+        var execP4 = (typeof awaitExec === 'function') ? awaitExec() : Promise.resolve(window.__atriaExec);
+        Promise.resolve(execP4).then(function (exec4) {
+          if (!exec4) return null;
+          // hosts 行数 (挂载检测) + state json, 两条命令
+          return Promise.all([
+            exec4('wc -l < /system/etc/hosts 2>/dev/null'),
+            exec4('cat /data/adb/atria_ad_state.json 2>/dev/null')
+          ]);
+        }).then(function (outs) {
+          var st = { isOn: false };
+          try {
+            var hl = parseInt(String(outs[0] || '0').trim(), 10) || 0;
+            st.isOn = hl > 10000;
+            var line = String(outs[1] || '').split('\n')[0].trim();
+            var j = null;
+            try { j = JSON.parse(line); } catch (e) {
+              var s = line.indexOf('{'), e2 = line.lastIndexOf('}');
+              if (s >= 0 && e2 > s) j = JSON.parse(line.slice(s, e2 + 1));
+            }
+            if (j) {
+              if (j.hosts_count) st.hosts_count = j.hosts_count;
+              if (j.updated_ts) st.updated_ts = j.updated_ts;
+              if (j.sources_fail) st.sources_fail = j.sources_fail;
+              if (j.best_source) st.best_source = j.best_source;
+              // v3.4.72: 开机自启状态
+              if (typeof j.auto_start === 'number') st.auto_start = j.auto_start;
+            }
+          } catch (e) {}
+          window.__atriaAdState = st;
+          // 重新渲染 (如果弹窗还开着)
+          if (modal.style.display === 'flex') {
+            try { body.innerHTML = fn(window.__atriaLastData || {}); } catch (e) {}
+            bindAdModalButtons();
+          }
+        }).catch(function () {});
+      } catch (e) {}
+    }
+    // v3.4.40: 告警历史—— alert 卡片首次打开时加载历史 jsonl
+    if (card === 'alert') {
+      try {
+        var execP3 = (typeof awaitExec === 'function') ? awaitExec() : Promise.resolve(window.__atriaExec);
+        Promise.resolve(execP3).then(function (exec3) {
+          if (!exec3) return null;
+          return loadAlertHistLog(exec3);
+        }).then(function (log) {
+          if (modal.style.display === 'flex') {
+            try { body.innerHTML = fn(window.__atriaLastData || {}); } catch (e) {}
+          }
+        }).catch(function () {});
+      } catch (e) {}
+    }
   }
+
+  // v3.4.66: 弹窗内广告屏蔽按钮绑定 — 复用外部 adBusy 状态机
+  // 命令走全局 AD_SCRIPT, 结果写 dmAdMsg; 不重复实现逻辑, 直接驱动与卡片按钮相同的操作
+  function bindAdModalButtons() {
+    function msg(t) { var m = $('dmAdMsg'); if (m) m.textContent = t; }
+    function busy(b) {
+      var t = $('dmAdToggleBtn'), u = $('dmAdUpdateBtn'), c = $('dmAdBenchBtn');
+      if (t) t.disabled = b; if (u) u.disabled = b; if (c) c.disabled = b;
+    }
+    // v3.4.72: 开机自启开关 — 写 state 文件 auto_start 字段, service.sh 开机时读取
+    var as = $('dmAdAutoStart');
+    if (as) as.addEventListener('change', async function () {
+      var on = as.checked ? 1 : 0;
+      var lbl = as.parentElement.querySelector('span');
+      if (lbl) lbl.textContent = on ? '已开启, 开机自动挂载' : '关闭, 开机不启动';
+      try {
+        var r = await execWithTimeout('sh ' + AD_SCRIPT + ' setauto ' + (on ? 'on' : 'off') + ' 2>&1', 8000);
+        var out = String(r || '').split('\n')[0].trim();
+        var ok = false;
+        try { ok = JSON.parse(out).ok === true; } catch (e) {}
+        msg(ok ? (on ? '✅ 开机自启已开启' : '✅ 开机自启已关闭') : ('⚠ ' + (out || '执行失败').slice(0, 60)));
+        // 更新内存状态 (refreshAdModal 重渲染时保留)
+        if (window.__atriaAdState) window.__atriaAdState.auto_start = on;
+      } catch (e) { msg('⚠ ' + String(e.message || e).slice(0, 60)); }
+    });
+    var t = $('dmAdToggleBtn');
+    if (t) t.addEventListener('click', async () => {
+      if (window.__atriaAdBusy) return;
+      window.__atriaAdBusy = true; busy(true);
+      msg('⏳ 切换中…');
+      try {
+        const r = await execWithTimeout('sh ' + AD_SCRIPT + ' toggle 2>&1', 120000);
+        const out = String(r || '').split('\n')[0];
+        let ok = false;
+        try { ok = JSON.parse(out).ok === true || JSON.parse(out).mounted === 1 || JSON.parse(out).unmounted === 1; } catch (e) {}
+        msg(ok ? '✅ 操作完成' : ('⚠ ' + (out || '执行失败').slice(0, 80)));
+      } catch (e) { msg('⚠ ' + String(e.message || e).slice(0, 60)); }
+      finally { window.__atriaAdBusy = false; busy(false); await pollAdState(); refreshAdModal(); }
+    });
+    var u = $('dmAdUpdateBtn');
+    if (u) u.addEventListener('click', async () => {
+      if (window.__atriaAdBusy) return;
+      window.__atriaAdBusy = true; busy(true);
+      try {
+        const r = await execWithTimeout('sh ' + AD_SCRIPT + ' update-bg 2>&1', 10000);
+        const out = String(r || '').split('\n')[0].trim();
+        let st = null;
+        try { st = JSON.parse(out); } catch (e) {}
+        if (st && st.bg) {
+          msg('⏳ 后台更新中…');
+          startAdProgressPolling();
+          // v3.4.67: 进度轮询每 2s 写 dmAdMsg (弹窗开着), DONE 时 pollAdState 会刷新弹窗
+        } else if (st && st.ok) {
+          msg('✅ 已更新 ' + (st.hosts_count || 0) + ' 条规则');
+          await pollAdState(); refreshAdModal();
+        } else {
+          msg('⚠ ' + (out || '启动失败').slice(0, 80));
+        }
+      } catch (e) { msg('⚠ ' + String(e.message || e).slice(0, 60)); }
+      finally { window.__atriaAdBusy = false; busy(false); }
+    });
+    var c = $('dmAdBenchBtn');
+    if (c) c.addEventListener('click', async () => {
+      if (window.__atriaAdBusy) return;
+      window.__atriaAdBusy = true; busy(true);
+      msg('⏳ 评估规则源中 (3-6 分钟)…');
+      try {
+        await execWithTimeout('sh ' + AD_SCRIPT + ' benchmark 2>&1', 600000);
+        const raw = await execFn('cat ' + AD_BENCH + ' 2>/dev/null');
+        const line = String(raw || '').split('\n')[0].trim();
+        let b = null;
+        try { b = JSON.parse(line); } catch (e) {
+          const s = line.indexOf('{'), e2 = line.lastIndexOf('}');
+          if (s >= 0 && e2 > s) b = JSON.parse(line.slice(s, e2 + 1));
+        }
+        if (b && b.sources) {
+          const rows = b.sources.map(s => {
+            const icon = s.dl_ok === 0 ? '❌' : (s.core_hit > 0 ? '⚠️' : '✅');
+            return icon + ' ' + s.name + ' · ' + (s.dl_ok ? s.count + '条/' + s.unique + '独有/误伤' + s.core_hit + '/评分' + s.score : '下载失败') + (s.verdict ? ' (' + s.verdict + ')' : '');
+          });
+          msg('🏆 推荐: ' + (b.best_source || '?') + ' (评分 ' + b.best_score + ') · ' + rows.join(' · '));
+        } else { msg('⚠ 评估失败或无结果'); }
+      } catch (e) { msg('⚠ ' + String(e.message || e).slice(0, 60)); }
+      finally { window.__atriaAdBusy = false; busy(false); }
+    });
+  }
+
+  // v3.4.66: 重新加载状态并刷新弹窗 (操作完成后调用)
+  async function refreshAdModal() {
+    try {
+      const hl = await execWithTimeout('wc -l < /system/etc/hosts 2>/dev/null', 8000) || '0';
+      const raw = await execWithTimeout('cat /data/adb/atria_ad_state.json 2>/dev/null', 8000) || '';
+      const st = { isOn: (parseInt(String(hl).trim(), 10) || 0) > 10000 };
+      const line = String(raw).split('\n')[0].trim();
+      let j = null;
+      try { j = JSON.parse(line); } catch (e) {
+        const s = line.indexOf('{'), e2 = line.lastIndexOf('}');
+        if (s >= 0 && e2 > s) j = JSON.parse(line.slice(s, e2 + 1));
+      }
+      if (j) {
+        if (j.hosts_count) st.hosts_count = j.hosts_count;
+        if (j.updated_ts) st.updated_ts = j.updated_ts;
+        if (j.sources_fail) st.sources_fail = j.sources_fail;
+        if (j.best_source) st.best_source = j.best_source;
+        // v3.4.72: 开机自启状态
+        if (typeof j.auto_start === 'number') st.auto_start = j.auto_start;
+      }
+      window.__atriaAdState = st;
+      if (modal.style.display === 'flex') {
+        body.innerHTML = builders.ad(window.__atriaLastData || {});
+        bindAdModalButtons();
+      }
+    } catch (e) {}
+  }
+
+  // v3.4.66: 暴露 openDetail 给广告屏蔽卡片监听器 (IIFE 外部需调用)
+  window.__atriaOpenDetail = openDetail;
+  window.__atriaRefreshAdModal = refreshAdModal;   // 进度轮询结束时刷新弹窗
 
   // 绑定: 事件委托 — 点 .card[data-card] 即弹对应详情 (避免按钮/链接误触发)
   document.addEventListener('click', function (e) {
@@ -4070,6 +5045,161 @@ async function ensureCandidateIcons(pkgs, box) {
   });
   bind('settingsCloseBtn', function () { var m = $('settingsModal'); if (m) m.style.display = 'none'; modalOpen = false; });
 })();
+
+// v3.4.43: 底部导航栏 — 三面板切换 (自 panel2_preview 移植, pageIn 起始 0.35 防白屏)
+(function () {
+  var btns = document.querySelectorAll('.nav-item');
+  if (!btns.length) return;
+  btns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = btn.getAttribute('data-page');
+      if (!target) return;
+      btns.forEach(function (b) { b.classList.toggle('active', b === btn); });
+      document.querySelectorAll('.page').forEach(function (p) {
+        p.classList.toggle('active', p.id === target);
+      });
+    });
+  });
+})();
+
+// ============================================================
+// v3.4.53: 广告屏蔽 (systemless hosts) — 借鉴 bindhosts/AdAway/anti-AD
+// ============================================================
+// 状态轮询: 读 /data/adb/atria_ad_state.json (模块外持久化)
+// 操作: sh scripts/adblock.sh {toggle|update|benchmark}
+// 安全: hosts 规则已剔除保护域名 (微信/QQ/淘宝等), 白名单在 /data/adb/atria_ad_whitelist.conf
+const AD_STATE = '/data/adb/atria_ad_state.json';
+const AD_BENCH = '/data/adb/atria_ad_bench.json';
+const AD_HOSTS_FILE = '/data/local/tmp/atria_ad_hosts.txt';
+// v3.4.54: 后台更新进度日志 (adblock.sh update-bg 写, 前端轮询读)
+const AD_PROGRESS = '/data/local/tmp/atria_ad_progress.log';
+const AD_SCRIPT = (MOD_PATH || MOD_PATHS[0]) + '/scripts/adblock.sh';
+let adBusy = false, adPollTick = 0;
+
+const adValEl = document.getElementById('adVal');
+const adDotEl = document.getElementById('adDot');
+const adDetailEl = document.getElementById('adDetail');
+// v3.4.67: 外部控制条按钮已移除, 操作入口全部在详情弹窗内 (builders.ad + bindAdModalButtons)
+
+// v3.4.53: 读取广告屏蔽状态
+// v3.4.53 修复: 去掉 % 12 节流 — 原设计意图是"每 12 个主 poll(5s) = 60s", 但主 poll 从不调用本函数,
+// 唯一调用者是 60s 的 setInterval 与 load 回调, 全被节流跳过 → 状态永不刷新
+// 调用者: ① load 后 3s ② 60s setInterval ③ toggle/update/benchmark 操作后
+async function pollAdState() {
+  if (adBusy) return;
+  try {
+    // v3.4.53: 带超时, 防止 exec 桥卡死时整个轮询停摆
+    let raw = '';
+    try { raw = await execWithTimeout('cat ' + AD_STATE + ' 2>/dev/null', 8000) || ''; }
+    catch (e) { raw = ''; }
+    if (!raw || !String(raw).trim()) {
+      // v3.4.53: state 文件不存在时, 用 hosts 文件大小兜底判断是否曾配置过
+      let hostsLines = '0';
+      try { hostsLines = await execWithTimeout('wc -l < ' + AD_HOSTS_FILE + ' 2>/dev/null', 8000) || '0'; } catch (e) {}
+      const hasRules = parseInt(String(hostsLines).trim(), 10) > 100;
+      if (adValEl) { adValEl.textContent = hasRules ? '已暂停' : '未启用'; adValEl.style.color = hasRules ? '#facc15' : '#64748b'; }
+      if (adDotEl) { const c = hasRules ? '#facc15' : '#64748b'; adDotEl.style.color = c; adDotEl.style.background = c; }
+      if (adDetailEl) adDetailEl.textContent = hasRules ? '规则已下载, 未挂载' : '点击查看详情与操作';
+      // v3.4.67: 按钮在外部已删除, 状态变更同步到弹窗 (若开着)
+      if (window.__atriaOpenDetail && document.getElementById('dmAdMsg')) {
+        try { window.__atriaRefreshAdModal(); } catch (e) {}
+      }
+      return;
+    }
+    // exec 桥可能截断多行, 取第一行
+    const line = String(raw).split('\n')[0].trim();
+    let st = null;
+    try { st = JSON.parse(line); } catch (e) {
+      const s = line.indexOf('{'), e2 = line.lastIndexOf('}');
+      if (s >= 0 && e2 > s) st = JSON.parse(line.slice(s, e2 + 1));
+    }
+    if (!st) return;
+    // 以实际挂载状态为准 — bind mount 在 WebView exec 桥的 namespace 里可能不可见 (/proc/mounts 查不到),
+// 但 hosts 文件内容所有 namespace 都能读: 已挂载 = /system/etc/hosts 内容是广告规则 (>1万行) 而非原生 2 行
+// v3.4.53: 改用 hosts 文件内容检测, 同时与 state 文件的 enabled 交叉验证
+let hostsLines = '0';
+try { hostsLines = await execWithTimeout('wc -l < /system/etc/hosts 2>/dev/null', 8000) || '0'; } catch (e) { hostsLines = '0'; }
+const sysHostsLines = parseInt(String(hostsLines).trim(), 10) || 0;
+// v3.4.53: state 里的 enabled 由 adblock.sh 写入 (它在自己 namespace 里 is_mounted 检测)
+// hosts 行数 > 10000 = 广告规则已挂载 (原生 hosts 只有 2 行)
+const isOn = sysHostsLines > 10000;
+    if (isOn) {
+      // v3.4.61: 规则数优先取 sysHostsLines (实测挂载件行数), 状态文件值仅作回退
+      // 修复: 手动清理/替换 hosts 后 state.hosts_count 未更新, 面板仍显示旧数字
+      const cnt = sysHostsLines > 1000 ? sysHostsLines : (st.hosts_count || 0);
+      if (adValEl) { adValEl.textContent = (cnt >= 10000 ? (cnt / 10000).toFixed(1) + '万' : cnt) + ' 条'; adValEl.style.color = '#4ade80'; }
+      if (adDotEl) { adDotEl.style.color = '#4ade80'; adDotEl.style.background = '#4ade80'; }
+      const t = st.updated_ts ? new Date(+st.updated_ts * 1000).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const fail = st.sources_fail ? ' ⚠部分源失败' : '';
+      if (adDetailEl) adDetailEl.textContent = '已生效 · 更新于 ' + t + fail;
+    } else {
+      if (adValEl) { adValEl.textContent = '已暂停'; adValEl.style.color = '#facc15'; }
+      if (adDotEl) { adDotEl.style.color = '#facc15'; adDotEl.style.background = '#facc15'; }
+      if (adDetailEl) adDetailEl.textContent = '规则已下载, 未挂载';
+    }
+    // v3.4.67: 外部按钮已删, 状态变化时刷新弹窗 (若开着)
+    if (window.__atriaOpenDetail && document.getElementById('dmAdMsg')) {
+      try { window.__atriaRefreshAdModal(); } catch (e) {}
+    }
+  } catch (e) {}
+}
+
+// v3.4.67: 外部按钮监听器 (toggle/update/benchmark) 已删除 — 逻辑全部在弹窗 bindAdModalButtons
+// v3.4.54: 进度轮询 — 每 2s 读 progress 日志, 显示最后 3 行, DONE 时停止并刷新状态
+let adProgTimer = null;
+let adProgDone = false;
+function startAdProgressPolling() {
+  if (adProgTimer) clearInterval(adProgTimer);
+  adProgDone = false;
+  adProgTimer = setInterval(async () => {
+    if (adProgDone) return;
+    try {
+      const raw = await execWithTimeout('tail -n 3 ' + AD_PROGRESS + ' 2>/dev/null', 6000) || '';
+      const lines = String(raw).split('\n').filter(l => l.trim());
+      if (!lines.length) return;
+      // 最后一条带时间戳, 算已耗时
+      const last = lines[lines.length - 1];
+      const m = last.match(/^\[(\d+)\]/);
+      let elapsed = '';
+      if (m) {
+        const sec = Math.floor(Date.now() / 1000) - parseInt(m[1], 10);
+        if (sec >= 0) elapsed = ' (' + (sec >= 60 ? Math.floor(sec / 60) + '分' + (sec % 60) + '秒' : sec + '秒') + ')';
+      }
+      // 显示最后 3 行的纯文本 (去掉时间戳括号)
+      const txt = lines.map(l => l.replace(/^\[\d+\]\s*/, '')).join(' · ');
+      // v3.4.67: 进度写弹窗消息区 (外部按钮已删)
+      var dmMsg = document.getElementById('dmAdMsg');
+      if (dmMsg) dmMsg.textContent = '⏳ ' + txt + elapsed;
+      // DONE 或失败 → 停止轮询, 刷新状态卡
+      if (last.indexOf('DONE') >= 0 || last.indexOf('失败') >= 0) {
+        adProgDone = true;
+        clearInterval(adProgTimer);
+        adProgTimer = null;
+        adBusy = false;
+        window.__atriaAdBusy = false;
+        pollAdState();
+        // v3.4.67: pollAdState 会刷新弹窗 (若开着)
+      }
+    } catch (e) {}
+  }, 2000);
+}
+
+// v3.4.67: 外部 benchmark 监听器已删除 — 逻辑在弹窗 bindAdModalButtons
+
+// v3.4.53: 点击卡片弹出广告屏蔽详情 (规则数/来源/推荐/白名单路径)
+// v3.4.66: 改走标准 openDetail('ad') — builders.ad + NAMES.ad, 异步加载状态 + 弹窗内按钮
+// 原 showAdDetail 调用不存在的 openDetailModal (ReferenceError), 已移除
+const adCardEl = document.querySelector('.card[data-card="ad"]');
+if (adCardEl) adCardEl.addEventListener('click', async (ev) => {
+  if (ev.target.closest('button,input,a')) return;
+  if (window.__atriaOpenDetail) window.__atriaOpenDetail('ad');
+});
+
+// 注册到轮询链
+const _origPoll = window.__atriaPoll || null;
+window.addEventListener('load', () => { setTimeout(pollAdState, 3000); });
+setInterval(pollAdState, 60000);   // 兜底: 每 60s 独立轮询 (不依赖主 poll)
+
 </script>
 <script>
 // v3.2.36: 白名单应用图标功能已集成 (iconImgFor + saveWhitelist 触发提取);

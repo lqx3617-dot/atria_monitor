@@ -1,4 +1,4 @@
-/* Atria Monitor v3.4.6 - C 采集端原型
+/* Atria Monitor v3.2.97 - C 采集端原型
  * 替代 collect.sh 的核心指标采集: mem/cpu/thermal/battery/storage/net/processes
  * 输出与 shell 版完全兼容的 JSON
  */

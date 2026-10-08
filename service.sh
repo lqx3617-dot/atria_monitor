@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.34 - 开机自启服务
+# Atria Monitor v3.4.72 - 开机自启服务
 # v3.2.36: 白名单应用图标提取 (刷新检测由 collect_loop.sh refresh_icons 负责)
 # v3.2.34: 启动环境兼容 (KernelSU late_service 阶段 PATH 可能残缺, 补全常用路径)
 export PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:$PATH
@@ -38,6 +38,10 @@ fi
 # 日志轮转: 保留上一份, 防止反复重启导致日志膨胀
 [ -f "$LOG" ] && mv "$LOG" "$LOG.old" 2>/dev/null
 
+# v3.4.72: 广告屏蔽开机自启 — auto_start=1 时自动挂载 hosts (秒级, 不下载)
+# 放在 collect_loop 启动前: hosts 挂载越早, 开机后的 DNS 拦截越早生效
+sh "$MODDIR/scripts/adblock.sh" boot >> "$LOG" 2>&1
+
 # v3.2.34: setsid 脱离父进程组, 防止 init/zygote 重启周期清理后台进程
 # (原 nohup & 在部分 KernelSU/SukiSU 环境被杀, 表现为日志文件完全不生成)
 if command -v setsid >/dev/null 2>&1; then
@@ -45,6 +49,9 @@ if command -v setsid >/dev/null 2>&1; then
 else
   nohup sh "$MODDIR/scripts/collect_loop.sh" >> "$LOG" 2>&1 &
 fi
+
+# v3.4.40: 安装拦截监听器开机自启 (单例锁在 install_watch.sh 内, PID+cmdline 校验)
+setsid nohup sh "$MODDIR/scripts/install_watch.sh" >> /data/local/tmp/atria_install_watch.log 2>&1 &
 # v3.2.34: 不再写锁. setsid/nohup 后 $! 是父进程 PID (setsid 会 fork), 不可靠.
 # 锁由 collect_loop.sh 自己写入 (echo $$ > $LOCK), 避免锁内 PID 指向已退出的 setsid
 # v3.2.34: 启动自检 (3 秒后确认锁内 PID 存活且为 collect_loop, 失败则重试)

@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Atria Monitor v3.4.34 - 本地优化执行器
+# Atria Monitor v3.4.70 - 本地优化执行器
 # 用法:
 #   optimize.sh              一键优化: 清理大内存非保护进程 + 释放页缓存
 #   optimize.sh exec '动作'  执行单条白名单动作: kill <pid> / am force-stop <包名> / drop_caches
@@ -709,6 +709,12 @@ do_optimize() {
   # v3.2.34: 1s -> 0.3s (内存采样无需等满 1 秒)
   sleep 0.3 2>/dev/null || sleep 1
   AFTER=$(mem_percent)
+  # v3.4.70: killed=0 时的友好提示 — 大进程全在保护名单 = 设备整洁, 不是清理失败
+  if [ "$KILLED" -eq 0 ]; then
+    add_res "status" ok "✅ 系统整洁, 无需清理 (大内存进程均在保护名单内)"
+  else
+    add_res "status" ok "已结束 $KILLED 个后台进程, 释放 $((BEFORE - AFTER))% 内存"
+  fi
   printf '{"mode":"optimize","before":%s,"after":%s,"freed_pct":%s,"killed":%s,"skipped_protected":%s,"results":[%s]}\n' \
     "$BEFORE" "$AFTER" "$((BEFORE - AFTER))" "$KILLED" "$SKIPPED" "${RES%,}"
 }

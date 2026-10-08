@@ -102,7 +102,8 @@ inject_du() {
 
 PW_CACHE=''
 # v3.4.15: 首次立即注入 (初始化为满值), 面板打开约 5 秒就有耗电排行;
-# 之后每 15 采样周期 (~75s) 刷新 (mAh 为累计值变化慢, 无需高频)
+# 之后每 25 采样周期 (~100s) 刷新 (mAh 为累计值变化慢, 无需高频)
+# v3.4.55 (M3): 注释与实际 tick 同步 — 原注释写 15 周期, 代码已改为 25
 PW_TICK=15
 BS_TMP='/tmp/.atria_bs.txt'
 PW_TMP='/tmp/.atria_pw.txt'
@@ -110,7 +111,7 @@ MAP_TMP='/tmp/.atria_uidmap.txt'
 
 inject_power() {
   PW_TICK=$((PW_TICK + 1))
-  if [ "$PW_TICK" -ge 15 ]; then
+  if [ "$PW_TICK" -ge 25 ]; then
     PW_TICK=0
     PW_CACHE=''
     dumpsys batterystats --charged > "$BS_TMP" 2>/dev/null
@@ -128,7 +129,8 @@ inject_power() {
       _TOT=$(grep -oE 'Computed drain: [0-9]+' "$BS_TMP" 2>/dev/null | head -1 | grep -oE '[0-9]+')
       if [ -s "$PW_TMP" ]; then
         # UID→包名 join: u0a352 → uid:10352 (pm list packages -U)
-        pm list packages -U 2>/dev/null | awk -F'[: ]' '{
+        # v3.4.62: 加 8s 超时 (裸跑实测可挂起 1800s, 拖垮采集循环)
+        timeout 8 pm list packages -U 2>/dev/null | awk -F'[: ]' '{
           gsub(/package:/, "", $2); gsub(/uid:/, "", $NF)
           if ($NF ~ /^[0-9]+$/) print $NF, $2
         }' > "$MAP_TMP" 2>/dev/null
@@ -154,27 +156,40 @@ inject_power() {
 
 # v3.4.20: 应用名标签注入 — 把 pkg_label.sh 生成的包名->应用名映射注入 status.json
 # 前端耗电排行详情直接读 d.labels, 无需额外异步 exec (exec 桥接偶发吞返回)
+# v3.4.40: labels 改为写 sidecar — 2393B (18.9%) 的准静态数据不再每周期写进主 JSON
+# 前端 poll 时合并: d.labels 为空则读 /data/local/tmp/atria_static_labels.json
+# v3.4.53: LB_TICK 改名 LB_CACHE_TICK — 与 collect_loop.sh 的 pkg_label 刷新计数器
+# (原同名 LB_TICK, 语义完全不同: 那个是 300 周期刷新, 这个是 10 周期缓存) 分离, 避免互相干扰
+LB_CACHE_TICK=0
+LB_CACHE=''
+_LB_SIDE_LAST=''
 inject_labels() {
+  LB_CACHE_TICK=$((LB_CACHE_TICK + 1))
+  # v3.4.40: tick 缓存 (10 周期 ~40s) — 应用名是静态数据, 每次 awk 是浪费
+  if [ "$LB_CACHE_TICK" -lt 10 ] && [ -n "$LB_CACHE" ]; then
+    # v3.4.40: 命中缓存不再注入主 JSON (labels 走 sidecar)
+    return 0
+  fi
+  LB_CACHE_TICK=0
   LB_FILE='/data/local/tmp/atria_labels.conf'
   [ -f "$LB_FILE" ] || return
-  # 读缓存 (单行 base64 防 exec 截断场景; 此处是 shell 内部读取, 直接 cat)
-  local RAW LB_OUT K V
-  RAW=$(cat "$LB_FILE" 2>/dev/null)
-  [ -n "$RAW" ] || return
-  LB_OUT=''
-  while IFS=$'\t' read -r K V; do
-    [ -n "$K" ] && [ -n "$V" ] || continue
-    # 包名合法性校验 (防注入)
-    case "$K" in *[!A-Za-z0-9._-]*) continue ;; esac
-    # 转义值中的特殊字符 (JSON 安全)
-    V=$(printf '%s' "$V" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r\t')
-    [ -n "$V" ] || continue
-    if [ -n "$LB_OUT" ]; then LB_OUT="$LB_OUT,\"$K\":\"$V\""; else LB_OUT="\"$K\":\"$V\""; fi
-  done <<EOF
-$RAW
-EOF
-  if [ -n "$LB_OUT" ] && [ -n "$DATA" ]; then
-    case "$DATA" in *'}') DATA="${DATA%?},\"labels\":{$LB_OUT}}" ;; esac
+  # v3.4.40: awk 脚本独立成文件 labels.awk (同 logcat.awk 模式), 彻底绕开 shell 转义
+  local AWK_F="$DIR/labels.awk"
+  [ -f "$AWK_F" ] || AWK_F='/data/adb/modules/atria_monitor/scripts/labels.awk'
+  local LB_OUT
+  LB_OUT=$(awk -f "$AWK_F" "$LB_FILE" 2>/dev/null)
+  LB_CACHE="$LB_OUT"
+  # v3.4.40: labels 写 sidecar, 主 JSON 不再含此字段 (省 18.9% 写入量)
+  # 内容没变就不写 (应用名极少变化)
+  if [ -n "$LB_CACHE" ] && [ "$LB_CACHE" != "$_LB_SIDE_LAST" ]; then
+    printf '%s\n' "{\"labels\":{$LB_CACHE}}" > /data/local/tmp/atria_static_labels.json.new 2>/dev/null
+    if [ -s /data/local/tmp/atria_static_labels.json.new ]; then
+      chmod 644 /data/local/tmp/atria_static_labels.json.new 2>/dev/null
+      mv /data/local/tmp/atria_static_labels.json.new /data/local/tmp/atria_static_labels.json 2>/dev/null
+    else
+      rm -f /data/local/tmp/atria_static_labels.json.new 2>/dev/null
+    fi
+    _LB_SIDE_LAST="$LB_CACHE"
   fi
 }
 
@@ -418,9 +433,9 @@ inject_crashes() {
           _BURST_J="{\"process\":\"$_BP\",\"count\":$_BC,\"window_mins\":$_BW}"
         fi
       fi
-      DB_CACHE="\"count_24h\":$_CNT,\"app\":$_A,\"system\":$_S,\"tool\":$_T2,\"recent\":\"$_LAST\",\"burst\":$_BURST_J"
+      DB_CACHE="\"count_24h\":$_CNT,\"app\":$_A,\"system\":$_S,\"tool\":$_T2,\"recent\":\"$_LAST\",\"burst\":$_BURST_J,\"updated_ts\":$(date +%s)"
     else
-      DB_CACHE="\"count_24h\":0,\"app\":0,\"system\":0,\"tool\":0,\"recent\":\"\",\"burst\":null"
+      DB_CACHE="\"count_24h\":0,\"app\":0,\"system\":0,\"tool\":0,\"recent\":\"\",\"burst\":null,\"updated_ts\":$(date +%s)"
     fi
   fi
   if [ -n "$DB_CACHE" ] && [ -n "$DATA" ]; then
@@ -442,12 +457,13 @@ SEC_CACHE=''
 SEC_BASELINE=/data/local/tmp/atria_sec_baseline.txt
 inject_security() {
   SEC_TICK=$((SEC_TICK + 1))
-  if [ "$SEC_TICK" -ge 30 ] || [ -z "$SEC_CACHE" ]; then
+  # v3.4.62: 周期 45 -> 90 (~较慢周期下约 20 分钟一次), 减少 pm list/dumpsys 阻塞机会
+  if [ "$SEC_TICK" -ge 90 ] || [ -z "$SEC_CACHE" ]; then
     SEC_TICK=0
     SEC_CACHE=''
     _THR=''
-    # ---- 1. 设备管理器 (最高危, 锁机主途径) ----
-    _DA=$(dumpsys device_policy 2>/dev/null | grep -oE 'Admin: ComponentInfo\{[^}]+\}' | sed 's/Admin: ComponentInfo{//; s/}$//')
+    # v3.4.62: dumpsys device_policy 实测 160ms, 加 5s 超时保护 (卡死时整个采集循环停摆)
+    _DA=$(timeout 5 dumpsys device_policy 2>/dev/null | grep -oE 'Admin: ComponentInfo\{[^}]+\}' | sed 's/Admin: ComponentInfo{//; s/}$//')
     if [ -n "$_DA" ]; then
       _THR="${_THR}$(printf '%s\n' "$_DA" | while read -r _C; do
         _PKG=$(printf '%s' "$_C" | cut -d/ -f1)
@@ -487,21 +503,34 @@ inject_security() {
       _THR="${_THR}
 med|lockscreen_credential: password_type=$_LP"
     fi
-    # ---- 5. 新增包 (与基线 diff; comm 需两个已排序文件, 一律走临时文件) ----
-    _CUR=$(pm list packages 2>/dev/null | sed 's/^package://; s/\r$//' | sort)
-    printf '%s\n' "$_CUR" > /tmp/_sec_cur.txt
-    if [ ! -s "$SEC_BASELINE" ]; then
-      # 首次运行: 生成基线, 不报告
-      cp /tmp/_sec_cur.txt "$SEC_BASELINE" 2>/dev/null
-    else
-      _NEW=$(comm -13 "$SEC_BASELINE" /tmp/_sec_cur.txt 2>/dev/null | head -5)
-      if [ -n "$_NEW" ]; then
-        _THR="${_THR}$(printf '%s\n' "$_NEW" | while read -r _P; do
-          [ -n "$_P" ] && printf '\ninfo|new_package: %s' "$_P"
-        done)"
+    # v3.4.62: pm list packages 实测可卡死采集循环 (通道挂起 1800s 实测), 改用 8s 超时 +
+    # 缓存优先: SEC_PKG_CACHE 有效期内直接复用, 不再每周期都跑
+    if [ -z "$SEC_PKG_CACHE" ]; then
+      _CUR=$(timeout 8 pm list packages 2>/dev/null | sed 's/^package://; s/\r$//' | sort)
+      if [ -n "$_CUR" ]; then
+        SEC_PKG_CACHE="$_CUR"
+      else
+        # v3.4.62: pm list 失败/超时 — 跳过本轮新增包检测, 保住采集周期不崩
+        _CUR=''
       fi
+    else
+      _CUR="$SEC_PKG_CACHE"
     fi
-    rm -f /tmp/_sec_cur.txt
+    if [ -n "$_CUR" ]; then
+      printf '%s\n' "$_CUR" > /tmp/_sec_cur.txt
+      if [ ! -s "$SEC_BASELINE" ]; then
+        # 首次运行: 生成基线, 不报告
+        cp /tmp/_sec_cur.txt "$SEC_BASELINE" 2>/dev/null
+      else
+        _NEW=$(comm -13 "$SEC_BASELINE" /tmp/_sec_cur.txt 2>/dev/null | head -5)
+        if [ -n "$_NEW" ]; then
+          _THR="${_THR}$(printf '%s\n' "$_NEW" | while read -r _P; do
+            [ -n "$_P" ] && printf '\ninfo|new_package: %s' "$_P"
+          done)"
+        fi
+      fi
+      rm -f /tmp/_sec_cur.txt
+    fi
     # ---- 汇总 ----
     _H=$(printf '%s\n' "$_THR" | grep -c '^high|')
     _M=$(printf '%s\n' "$_THR" | grep -c '^med|')
@@ -515,4 +544,145 @@ med|lockscreen_credential: password_type=$_LP"
     # 剥尾 } 追加 ,"security":{...}, 末尾两个 } 分别闭合 security 对象与根对象 (与 inject_crashes 同构)
     case "$DATA" in *'}') DATA="${DATA%?},\"security\":{$SEC_CACHE}}" ;; esac
   fi
+}
+# v3.4.40: 安装拦截兜底通道 — install_watch 被杀或 logcat 丢事件时补位
+# 每 60 采样周期 (~4 分钟) 做一次 pm list packages 与缓存 diff, 新增包调用 install_scan.sh
+IW_TICK=0
+IW_CACHE=''
+IW_SEEN=/data/local/tmp/atria_install_seen.txt
+# v3.4.62: 安全扫描的包名缓存 (pm list packages 耗时且偶发卡死, 缓存复用)
+SEC_PKG_CACHE=''
+inject_install_fallback() {
+  IW_TICK=$((IW_TICK + 1))
+  # v3.4.40: 每 60 周期 (~4 分钟) 扫一次, 与 inject_security 的 30 周期错开避免峰值
+  if [ "$IW_TICK" -lt 60 ]; then return 0; fi
+  IW_TICK=0
+  # v3.4.62: pm list packages 加 8s 超时 (裸跑实测可挂起 1800s, 拖垮整个采集循环)
+  # 首次运行: 建立_seen缓存, 不告警 (与 SEC_BASELINE 同逻辑, 避免把已装应用全扫一遍)
+  if [ ! -s "$IW_SEEN" ]; then
+    timeout 8 pm list packages 2>/dev/null | sed 's/^package://; s/\r$//' | sort > "$IW_SEEN"
+    return 0
+  fi
+  # v3.4.62: pm list packages 加 8s 超时 (裸跑实测可挂起 1800s, 拖垮整个采集循环)
+  timeout 8 pm list packages 2>/dev/null | sed 's/^package://; s/\r$//' | sort > /tmp/.iw_cur.txt
+  # 新增包 = 当前列表 - 已见列表
+  _NEWP=$(comm -13 "$IW_SEEN" /tmp/.iw_cur.txt 2>/dev/null | head -5)
+  if [ -n "$_NEWP" ]; then
+    echo "$_NEWP" | while IFS= read -r _P; do
+      [ -n "$_P" ] && sh "$DIR/install_scan.sh" scan "$_P" >> /data/local/tmp/atria_install_log.jsonl 2>/dev/null
+    done
+    # 更新已见列表
+    mv /tmp/.iw_cur.txt "$IW_SEEN" 2>/dev/null
+  else
+    rm -f /tmp/.iw_cur.txt
+  fi
+}
+# v3.4.40: CPU 大小核实时频率与负载注入
+# 数据源: /proc/stat 8 核原始计数器 + /sys/devices/system/cpu/cpu$N/cpufreq/cpuinfo_cur_freq
+# 现有 kernel.cpu_clusters 只有频率, 本函数补充各核利用率 (差分算法)
+# CPU_TICK=15 (~60s): 采样并计算上一分钟以来的差分利用率
+CPU_TICK=0
+# 上次采样的原始计数器 (空分隔)
+_CPU_PREV=''
+CC_CACHE=''
+inject_cpu_cores() {
+  # v3.4.76: 缓存注入每次都执行 (在 tick 检查之前), 差分计算才受 tick 控制
+  # 原实现整个函数体都在 CPU_TICK<15 的 return 之后, 导致缓存只在 1/15 周期注入
+  if [ -n "$CC_CACHE" ] && [ -n "$DATA" ]; then
+    case "$DATA" in *'}') DATA="${DATA%?},\"cpu_cores\":[$CC_CACHE]}" ;; esac
+  fi
+  CPU_TICK=$((CPU_TICK + 1))
+  if [ "$CPU_TICK" -lt 15 ]; then return 0; fi
+  CPU_TICK=0
+  # 读出 8 核原始计数: core|busy|total
+  local LINE BUSY TOTAL CUR
+  CUR=''
+  for N in 0 1 2 3 4 5 6 7; do
+    LINE=$(awk -v n="cpu$N" '$1==n' /proc/stat 2>/dev/null)
+    [ -n "$LINE" ] || continue
+    # busy = user+nice+system+irq+softirq+steal ($2+$3+$4+$7+$8)
+    # total = busy + idle + iowait ($5+$6)
+    SET=$(printf '%s' "$LINE" | awk '{b=$2+$3+$4+$7+$8; t=b+$5+$6; printf "%d %d", b, t}')
+    BUSY=$(printf '%s' "$SET" | cut -d' ' -f1)
+    TOTAL=$(printf '%s' "$SET" | cut -d' ' -f2)
+    # 转十进制去前导零 (shell 算术不认 007)
+    BUSY=$((BUSY + 0))
+    TOTAL=$((TOTAL + 0))
+    if [ -n "$CUR" ]; then CUR="$CUR;"; fi
+    CUR="$CUR$N|$BUSY|$TOTAL"
+  done
+  [ -n "$CUR" ] || return 0
+  # 差分: 与上次采样比较
+  local N PB PT DB DT PCT FREQ F OUT
+  OUT=''
+  if [ -n "$_CPU_PREV" ]; then
+    IFS=';' read -r c0 c1 c2 c3 c4 c5 c6 c7 <<EOF
+$_CPU_PREV
+EOF
+    PREV_LIST="$c0;$c1;$c2;$c3;$c4;$c5;$c6;$c7"
+    for N in 0 1 2 3 4 5 6 7; do
+      # 当前行
+      CC=$(printf '%s' "$CUR" | cut -d';' -f$((N + 1)))
+      # 上次行
+      PP=$(printf '%s' "$PREV_LIST" | cut -d';' -f$((N + 1)))
+      [ -n "$CC" ] && [ -n "$PP" ] || continue
+      CB=$(printf '%s' "$CC" | cut -d'|' -f2)
+      CT=$(printf '%s' "$CC" | cut -d'|' -f3)
+      PB=$(printf '%s' "$PP" | cut -d'|' -f2)
+      PT=$(printf '%s' "$PP" | cut -d'|' -f3)
+      DB=$((CB - PB))
+      DT=$((CT - PT))
+      if [ "$DT" -gt 0 ]; then
+        PCT=$(( DB * 100 / DT ))
+        [ "$PCT" -gt 100 ] && PCT=100
+        [ "$PCT" -lt 0 ] && PCT=0
+      else
+        PCT=0
+      fi
+      FREQ=$(cat "/sys/devices/system/cpu/cpu$N/cpufreq/cpuinfo_cur_freq" 2>/dev/null)
+      [ -n "$FREQ" ] || FREQ=0
+      if [ -n "$OUT" ]; then OUT="$OUT,"; fi
+      OUT="$OUT{\"core\":$N,\"freq_khz\":$FREQ,\"util_pct\":$PCT}"
+    done
+  fi
+  _CPU_PREV="$CUR"
+  # v3.4.76: 差分结果存缓存, 下次调用由函数头部注入
+  if [ -n "$OUT" ]; then
+    CC_CACHE="$OUT"
+  fi
+}
+
+# v3.4.40: 网络质量监测注入
+# 数据源: ping 延迟 + wlan0 收发字节/包 + socket 计数
+# NETQ_TICK=30 (~2 分钟), ping 3 包约 1.5s
+# v3.4.76: 改缓存模式 — 原即时注入下一周期就丢 (同 cpu_cores 的 bug)
+NETQ_TICK=0
+NQ_CACHE=''
+inject_netq() {
+  # v3.4.76: 缓存注入每次都执行 (在 tick 检查之前), 差分计算才受 tick 控制
+  if [ -n "$NQ_CACHE" ] && [ -n "$DATA" ]; then
+    case "$DATA" in *'}') DATA="${DATA%?},\"netq\":$NQ_CACHE}" ;; esac
+  fi
+  NETQ_TICK=$((NETQ_TICK + 1))
+  if [ "$NETQ_TICK" -lt 30 ]; then return 0; fi
+  NETQ_TICK=0
+  # 1. ping 延迟 (3 包取平均, 超时 2s/包; 失败=0 表示不可达)
+  local PSTAT RTT
+  PSTAT=$(ping -c 3 -W 2 223.5.5.5 2>/dev/null | tail -1)
+  RTT=0
+  case "$PSTAT" in
+    *rtt*) RTT=$(printf '%s' "$PSTAT" | sed 's/.*= //; s/ ms//' | cut -d'/' -f2) ;;
+  esac
+  # 2. wlan0 收发字节累计
+  local WL RX_B TX_B
+  WL=$(grep 'wlan0:' /proc/net/dev 2>/dev/null)
+  RX_B=$(printf '%s' "$WL" | awk '{print $2}')
+  TX_B=$(printf '%s' "$WL" | awk '{print $10}')
+  # 3. socket 总数
+  local SOCK
+  SOCK=$(grep 'sockets:' /proc/net/sockstat 2>/dev/null | awk '{print $3}')
+  local OUT
+  OUT="{\"rtt_ms\":${RTT:-0},\"rx_bytes\":${RX_B:-0},\"tx_bytes\":${TX_B:-0},\"sockets\":${SOCK:-0}}"
+  # v3.4.76: 结果存缓存, 下次调用由函数头部注入
+  NQ_CACHE="$OUT"
 }

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>底部导航栏预览 - iOS结构 x Atria深色Token</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root { color-scheme: dark;
+    --bg: #0a0f1e;
+    --dim: #94a3b8;
+    --txt: #f1f5f9;
+    --acc: #38bdf8;
+    --acc2: #0ea5e9;
+    --brd: rgba(148,163,184,.14);
+  }
+  html { background: var(--bg); }
+  body {
+    min-height: 100vh;
+    background: radial-gradient(900px 460px at 85% -10%, rgba(56,189,242,.08), transparent 60%), var(--bg);
+    color: var(--txt);
+    font-family: -apple-system, "Noto Sans SC", "PingFang SC", sans-serif;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+  /* 顶栏 - 模拟面板标题 */
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px calc(14px + env(safe-area-inset-top)) 16px;
+    padding-top: calc(14px + env(safe-area-inset-top));
+    background: rgba(10,15,30,.88);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--brd);
+  }
+  .topbar h1 { font-size: 17px; font-weight: 700; }
+  .topbar .sub { font-size: 12px; color: #64748b; margin-top: 1px; }
+  .badge { font-size: 11px; color: var(--acc); border: 1px solid rgba(56,189,248,.35);
+    padding: 3px 9px; border-radius: 999px; background: rgba(56,189,248,.08); }
+  /* 内容卡 - 复用面板卡片质感 */
+  .main { padding: 16px; max-width: 720px; margin: 0 auto; }
+  .card {
+    border-radius: 16px; padding: 16px;
+    background: linear-gradient(160deg, rgba(30,41,59,.78), rgba(15,23,42,.55));
+    border: 1px solid var(--brd);
+    margin-bottom: 14px;
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0;
+    border-bottom: 1px solid rgba(148,163,184,.07); }
+  .row:last-child { border-bottom: 0; }
+  .k { font-size: 13px; color: #cbd5e1; }
+  .v { font-size: 13px; color: var(--acc); font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12px; color: #64748b; line-height: 1.7; margin-top: 8px; }
+
+  /* ==================== 底部导航栏 (核心) ==================== */
+  /* 结构照搬 iOS UITabBar: 4标签等分全宽, 选中/未选中 tint 着色 */
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    display: flex;
+    background: rgba(15,23,42,.92);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--brd);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tab {
+    flex: 1;                        /* 4等分全宽 = 127dp/标签 */
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px;                       /* icon->text 间距 2dp */
+    padding: 8px 0 6px;
+    background: none; border: 0; cursor: pointer;
+    color: rgba(148,163,184,.55);   /* 未选中 = iOS #B7B7BB 映射到深色 */
+    transition: color .18s ease;
+  }
+  .tab svg { width: 24px; height: 24px; }        /* icon 24dp */
+  .tab span { font-size: 15px; }                 /* text 15sp */
+  .tab.active { color: var(--acc); }             /* 选中 = #38bdf8 (iOS蓝同色系) */
+  .tab:active { opacity: .7; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div>
+    <h1>Atria Monitor</h1>
+    <div class="sub">底部导航栏预览 · iOS结构 x 深色Token</div>
+  </div>
+  <span class="badge">预览</span>
+</header>
+
+<main class="main">
+  <section class="card">
+    <h2>实时状态</h2>
+    <div class="row"><span class="k">内存占用</span><span class="v" id="mem">--</span></div>
+    <div class="row"><span class="k">CPU 温度</span><span class="v" id="temp">--</span></div>
+    <div class="row"><span class="k">电池电量</span><span class="v" id="batt">--</span></div>
+    <div class="row"><span class="k">帧率</span><span class="v" id="fps">--</span></div>
+  </section>
+
+  <section class="card">
+    <h2>导航栏规格 (来自实测)</h2>
+    <div class="row"><span class="k">布局</span><span class="v">4标签等分全宽</span></div>
+    <div class="row"><span class="k">图标 / 文字</span><span class="v">24dp / 15sp</span></div>
+    <div class="row"><span class="k">选中色</span><span class="v">#38bdf8</span></div>
+    <div class="row"><span class="k">未选中</span><span class="v">#94a3b8 55%</span></div>
+    <div class="row"><span class="k">背景</span><span class="v">毛玻璃 rgba(15,23,42,.92)</span></div>
+    <p class="hint">结构照搬 iOS UITabBar。配色映射到面板深色Token: 选中=#38bdf8(与iOS蓝#007AFF同色系), 未选中=灰色降饱和, 背景毛玻璃。图标用 currentColor 着色, 选中时图标+文字一起变色, 无需两套切图。</p>
+  </section>
+</main>
+
+<!-- ==================== 底部导航栏 ==================== -->
+<nav class="tabbar" id="tabbar">
+  <button class="tab active" data-tab="0">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l9 8h-2.5v9h-4.5v-5.5h-4V20H5.5v-9H3l9-8z"/></svg>
+    <span>首页</span>
+  </button>
+  <button class="tab" data-tab="1">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 8h-3V4H3v13h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM8 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM17 9V6h-2v3h2z"/></svg>
+    <span>驱动</span>
+  </button>
+  <button class="tab" data-tab="2">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.34 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+    <span>我的</span>
+  </button>
+  <button class="tab" data-tab="3">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12zm-5-6l-7 4V7l7 4z"/></svg>
+    <span>直播</span>
+  </button>
+</nav>
+
+<script>
+  /* tab 切换 (预览用) */
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+  }));
+
+  /* 假数据 - 预览页不连真实采集 */
+  const memEl = document.getElementById('mem');
+  const tempEl = document.getElementById('temp');
+  const battEl = document.getElementById('batt');
+  const fpsEl = document.getElementById('fps');
+  let mem = 4.2;
+  setInterval(() => {
+    mem = Math.max(3.4, Math.min(5.6, mem + (Math.random() - .5) * .3));
+    memEl.textContent = mem.toFixed(1) + ' GB / 7.4 GB';
+    tempEl.textContent = (41 + Math.random() * 4).toFixed(1) + ' °C';
+    battEl.textContent = '72% · 充电中';
+  }, 1500);
+  memEl.textContent = '4.2 GB / 7.4 GB';
+  tempEl.textContent = '41.0 °C';
+  battEl.textContent = '72% · 充电中';
+
+  /* fps 角标 - 复用主面板约定: --=脚本死, 数字=在跑 */
+  let frames = 0, last = performance.now(), running = true;
+  function loop(t) {
+    if (!running) return;
+    frames++;
+    if (t - last >= 1000) {
+      fpsEl.textContent = Math.round(frames * 1000 / (t - last));
+      frames = 0; last = t;
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+</script>
+</body>
+</html>
