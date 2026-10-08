@@ -76,9 +76,11 @@ inject_du() {
         /storage/emulated/0/Android/data) _KEY=appdata ;;
         *) _KEY=ext ;;
       esac
-      # v3.4.81: du 加 timeout 保护 — 445 个目录展开偶发慢 (实测 1.9s, 闪存慢时 10-30s), 超时跳过该源
-      # 注意: timeout 只包 du 本身 (包 sh -c 管道时 toybox timeout 信号传递有 bug, 实测卡满 15s)
-      _DIRS=$(timeout 15 du -s "$_SRC"/* 2>/dev/null | sort -rn | head -5)
+      # v3.4.90: du 卡死根因修复 — toybox timeout 默认发 SIGTERM, du 在 FUSE/加密目录上
+      # 卡 D 状态时忽略 SIGTERM, timeout 自身也不退出, 拖死整个 collect_loop (实测复现: PID 5952)
+      # 改用 SIGKILL (-s KILL) 强杀, 无法被忽略; 同时 15s→10s 缩短卡死窗口
+      # 实测 du -s /data/data/* 445 目录 8.7-17s, 10s 超时偶尔会跳过该源, 但 DU_CACHE 有上一轮缓存兜底
+      _DIRS=$(timeout -s KILL 10 du -s "$_SRC"/* 2>/dev/null | sort -rn | head -5)
       [ -n "$_DIRS" ] || continue
       printf '%s\n' "$_DIRS" | awk -F'\t' '{
         n = split($2, parts, "/"); base = parts[n]
