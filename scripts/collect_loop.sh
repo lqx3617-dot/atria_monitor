@@ -367,7 +367,24 @@ inject_logcat() {
     *) return 0 ;;
   esac
   # v3.2.98: 只替换 "logcat":[...] 值段本身 (PRE/POST 重拼会因 msg 内嵌 ] 出错)
-  DATA=$(printf '%s' "$DATA" | sed "s|\"logcat\":\[[^]]*\]|\"logcat\":[$LOGJSON]|" 2>/dev/null)
+  # v3.4.108: BUG 修复 — sed 替换在 LOGJSON 含 | (分隔符冲突, sed 报 unknown option,
+  # logcat 整轮不注入) 或 & (反向引用, 输出损坏 JSON 被 brace_bal 丢弃整轮采样) 时崩溃。
+  # 日志消息含 |/& 是常见场景 (路径/Shell 命令/正则), 该 bug 自 v3.2.98 起存在。
+  # 改用 awk index/substr 切割重拼: LOGJSON 经 -v 变量传入, 完全绕开 sed 转义层;
+  # 语义与原 sed s|"logcat":\[[^]]*\]| 等价 (K 后第一个 ] 为旧值段结束)
+  DATA=$(printf '%s' "$DATA" | awk -v LJ="$LOGJSON" '
+    BEGIN { K = "\"logcat\":[" }
+    {
+      i = index($0, K)
+      if (i > 0) {
+        rest = substr($0, i)
+        j = index(rest, "]")
+        if (j > 0) {
+          seg_end = i + j - 1
+          print substr($0, 1, i - 1) K LJ "]" substr($0, seg_end + 1)
+        } else print
+      } else print
+    }' 2>/dev/null)
   # v3.3.1: sed 替换失败时保留原 DATA, 绝不用空 PRE/POST 拼出残缺 JSON
 }
 

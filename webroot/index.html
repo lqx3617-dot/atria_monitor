@@ -42,13 +42,22 @@ body {
 ::-webkit-scrollbar-thumb { background: #334155; border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 .wrap { max-width: 920px; margin: 0 auto; padding-bottom: calc(var(--navbar-h, 62px) + max(16px, env(safe-area-inset-bottom))); padding-top: calc(var(--header-h, 54px) + max(12px, env(safe-area-inset-top)));
-  padding-left: 16px; padding-right: 16px; }  /* v3.4.46: 主内容区与吸顶栏文字左右对齐 (窄屏 16px) */
+  padding-left: 16px; padding-right: 16px;
+  /* v3.4.98: 允许纵向滚动, 水平滑动手势由 JS 接管 */
+  touch-action: pan-y; }
 /* v3.4.46: 吸顶栏文字与主内容区左右对齐 — 三档断点同步 .wrap 的 max-width */
 @media (min-width: 1024px) {
   .brand { padding-left: max(16px, calc((100vw - 1400px) / 2 + 16px)); padding-right: max(16px, calc((100vw - 1400px) / 2 + 16px)); }
 }
 @media (min-width: 1700px) {
   .brand { padding-left: max(16px, calc((100vw - 1640px) / 2 + 16px)); padding-right: max(16px, calc((100vw - 1640px) / 2 + 16px)); }
+}
+/* v3.4.92: 底栏玻璃条与顶栏同宽 — 大屏断点同步扩宽 */
+@media (min-width: 1024px) {
+  .navbar { padding-left: max(16px, calc((100vw - 1400px) / 2 + 16px)); padding-right: max(16px, calc((100vw - 1400px) / 2 + 16px)); }
+}
+@media (min-width: 1700px) {
+  .navbar { padding-left: max(16px, calc((100vw - 1640px) / 2 + 16px)); padding-right: max(16px, calc((100vw - 1640px) / 2 + 16px)); }
 }
 h1.brand { font-size: 18px; margin-bottom: 0; }  /* v3.4.45: 吸顶后的标题尺寸 */
 .sub { font-size: 13px; color: var(--dim); font-weight: normal; margin-left: 8px; -webkit-text-fill-color: var(--dim); }
@@ -60,8 +69,11 @@ h1.brand { font-size: 18px; margin-bottom: 0; }  /* v3.4.45: 吸顶后的标题�
   min-height: 54px;  /* v3.4.45: 高度对齐 nav-item 54px */
   padding: 10px max(16px, calc((100vw - 920px) / 2 + 16px));  /* v3.4.46: +16 对齐 .wrap 内容 (margin+padding) */
   padding-top: calc(10px + env(safe-area-inset-top));
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  /* v3.4.102: blur 20→12 — 实测三个 backdrop-filter 叠加让 FPS 从 44.7 掉到 16.4,
+     blur 半径是最大开销 (高斯采样复杂度 O(r²))。12px 仍有毛玻璃观感, GPU 负担降一半 */
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  will-change: transform;   /* v3.4.102: 独立合成层, 模糊结果可被 GPU 缓存复用 */
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
   box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
   /* v3.4.49: 滚动穿透兜底 — backdrop-filter 在滚动合成延迟时, 底下曲线/卡片发光条会透到顶栏数字上。
@@ -77,8 +89,31 @@ h1.brand { font-size: 18px; margin-bottom: 0; }  /* v3.4.45: 吸顶后的标题�
   box-shadow: 0 4px 12px rgba(14, 165, 233, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 .brand-badge .ic { width: 21px; height: 21px; margin: 0; vertical-align: initial; color: #f0f9ff; }
-.brand-title { letter-spacing: -0.03em; }
-.brand .top-actions { float: none; margin-left: auto; }
+/* v3.4.96: 顶栏优化 — 按钮下沉后重新平衡: 左侧品牌组, 右侧状态 chip 右推 + 状态点 */
+.brand-left { flex: none; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-title { letter-spacing: -0.03em; white-space: nowrap; }
+/* 标题副标: 小字, 弱化, 宽屏显示 */
+.brand-title small {
+  display: block; font-size: 10px; font-weight: 500; letter-spacing: 0.08em;
+  color: #64748b; margin-top: 1px;
+}
+/* v3.4.96: 状态 chip 推到右侧, 带状态点 */
+.brand .sub { margin-left: auto; text-align: right; }
+.brand .sub::before {
+  content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 6px currentColor; margin-right: 7px;
+}
+.brand .sub.err::before { background: var(--bad); }
+.brand .sub.err { -webkit-text-fill-color: var(--bad); color: var(--bad); background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.25); }
+/* 窄屏: 副标隐藏, chip 压缩 */
+@media (max-width: 560px) {
+  .brand-title small { display: none; }
+  .brand { gap: 8px; }
+  .brand .sub { max-width: 46vw; }
+}
+@media (max-width: 420px) {
+  .brand .sub { max-width: 40vw; font-size: 11px; }
+}
 h1 .sub {
   display: inline-flex; align-items: center; align-self: center;
   font-size: 11.5px; letter-spacing: 0.02em; line-height: 1.5;
@@ -102,7 +137,8 @@ h1 .sub {
 @media (max-width: 560px) { .cards { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
 .card { contain: layout paint style;   /* v3.2.28: 卡片间重绘隔离 */
   position: relative; overflow: hidden;
-  will-change: transform;
+  /* v3.4.99: 去掉常驻 will-change — 8+ 卡各占一个合成层, 静态时白耗内存;
+     hover/active 的 transform 由 contain 隔离重绘, 浏览器自动合成足够快 */
   background: var(--card);
   border: 1px solid var(--brd);
   border-radius: 16px; padding: 16px 18px;
@@ -128,7 +164,10 @@ h1 .sub {
   .bar-fill { transition: none; }
   .card { transition: none; }
 }
-.value, .bar-fill, .dot { will-change: transform, opacity; }   /* v3.2.28: 合成层提升, 动画不触发重排 */
+/* v3.4.99: will-change 按需提升 — 常驻合成层在静态时白占内存 (每卡 3-4 个元素 × 8 卡)。
+   数值脉冲/条形变化是瞬时动画, 只在动画期间提升, 结束后回落。 */
+.value.pulse, .bar-fill { will-change: transform; }
+.dot { will-change: opacity; }
 @keyframes numPulse { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
 .top-actions { float: right; display: flex; gap: 6px; }
 .top-btn { padding: 7px 11px; font-size: 14px; }
@@ -293,6 +332,35 @@ input[type="checkbox"] { accent-color: var(--acc); width: 16px; height: 16px; cu
   .proc:hover { border-color: rgba(56, 189, 248, 0.3); transform: translateX(2px); }
   /* v3.2.34: 超过 20 行的列表项不播动画, 避免长列表卡顿 */
   .proc:nth-child(n+20) { animation: none; }
+  /* v3.4.97: 进程列表表头 — 列宽与 .proc 各列严格对齐 (同 flex 布局)
+     宽屏 #procs 是双列 grid: 表头跨双列, 内部也是双列, 每列一个 ph-row 与下方 .proc 行对齐 */
+  .proc-head { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px 10px; }
+  .proc-head .ph-row { display: flex; align-items: center; gap: 7px; padding: 4px 9px; margin-bottom: 5px;
+    font-size: 10px; color: var(--dim); font-weight: 600; letter-spacing: 0.02em;
+    /* v3.4.97: 与 .proc 同边框盒 (透明边框占位), 保证列几何逐像素对齐 */
+    border: 1px solid transparent; border-bottom: 1px solid var(--brd); }
+  .proc-head .ph-row + .ph-row { display: none; }   /* 窄屏只显示一个表头 */
+  .proc-head .ph-name { flex: 1; min-width: 0; }
+  .proc-head .ph-pid { flex: none; width: 44px; }
+  .proc-head .ph-rss { flex: none; width: 58px; text-align: right; }
+  .proc-head .ph-cpu { flex: none; width: 42px; text-align: right; }
+  .proc-head .ph-stat { flex: none; width: 24px; text-align: center; }
+  .proc-head .ph-wl { flex: none; width: 16px; margin: 0 4px 0 2px; text-align: center; }
+  /* v3.4.97: ph-kill 与 p-kill 同宽 (按钮 padding 2px 10px + 文字), 避免表头操作列窄于数据行 */
+  .proc-head .ph-kill { flex: none; width: 43.82px; }
+  /* v3.4.97: procBody 承载进程行, 跨双列, 自身也是双列 grid; 窄屏单列 */
+  #procBody { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px 10px; align-content: start; }
+  /* v3.4.97: 极窄屏与 .proc 同步隐藏状态列 */
+  @media (max-width: 420px) {
+    .proc-head .ph-pid { width: 42px; }
+    .proc-head .ph-stat { display: none; }
+  }
+  /* v3.4.97: 宽屏 (>=1024px) 表头与进程行都走双列 — 必须在基础定义之后, 同优先级后者覆盖前者 */
+  @media (min-width: 1024px) {
+    #procBody { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .proc-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .proc-head .ph-row + .ph-row { display: flex; }
+  }
   .proc .p-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .proc .p-pid { color: #64748b; font-variant-numeric: tabular-nums; font-family: monospace; font-size: 11px; flex: none; width: 44px; }
   .proc .p-rss { color: #cbd5e1; font-variant-numeric: tabular-nums; flex: none; width: 58px; text-align: right; }
@@ -539,41 +607,87 @@ h1 .sub { -webkit-text-fill-color: var(--dim); }
 #cfgModelBtn[aria-expanded="true"] .u-sel-caret { transform: rotate(180deg); }
 #cfgModelBtn .m-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* ===== v3.4.43: 三面板切换 ===== */
+/* v3.4.98: 切换流畅度优化 — duration 0.25s→0.18s, 曲线改 snappy 型, will-change 提升合成层 */
 .page { display: none; }
-.page.active { display: block; animation: pageIn 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
-@keyframes pageIn { from { opacity: 0.35; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.page.active { display: block; animation: pageIn 0.18s cubic-bezier(0.2, 0, 0, 1); will-change: transform, opacity; }
+@keyframes pageIn { from { opacity: 0.5; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .page.active { animation: none; } }
+/* v3.4.98: 滑动跟手 — 拖动时禁用入场动画, 页面随手指平移 */
+.page.swiping { animation: none; transition: none; }
 
-/* ===== v3.4.43: 底部导航栏 (自 panel2_preview.html 移植) ===== */
-.navbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 100;
-  display: flex; justify-content: space-around; align-items: stretch;
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
+/* ===== v3.4.108: 底部导航栏 — 朴素毛玻璃 Tab 栏 (药丸已移除) ===== */
+.navbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 100;
+  display: flex;
+  align-items: stretch;
+  padding-left: max(16px, calc((100vw - 920px) / 2 + 16px));
+  padding-right: max(16px, calc((100vw - 920px) / 2 + 16px));
+  /* v3.4.108: 保留毛玻璃, 去掉折射滤镜 (药丸移除后不再需要) */
+  backdrop-filter: blur(10px) saturate(1.8);
+  -webkit-backdrop-filter: blur(10px) saturate(1.8);
+  background: rgba(255, 255, 255, 0.02);
   padding-bottom: env(safe-area-inset-bottom);
-  box-shadow: 0 -8px 24px rgba(2, 6, 23, 0.4);
-  /* v3.4.49: 同 .brand — 底栏也提高不透明度, 滚动时进程列表/曲线不再透到导航图标上 */
-  background: rgba(10, 15, 30, 0.96); }
-.nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  padding: 10px 4px 8px; cursor: pointer; color: #64748b; transition: color 0.2s ease; position: relative;
-  min-height: 54px; background: none; border: none; font-family: inherit; }
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  isolation: isolate;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* z:-1 白色 tint 底色 */
+.navbar::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: rgba(255, 255, 255, 0.05);
+}
+/* z:3 色散边缘高光 */
+.navbar::after {
+  content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  box-shadow:
+    inset 1px 0 rgba(255, 86, 116, 0.16),
+    inset -1px 0 rgba(54, 226, 255, 0.14),
+    inset 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 -12px 24px rgba(255, 255, 255, 0.04);
+  mix-blend-mode: screen;
+}
+.nav-item {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px;
+  padding: 10px 4px 8px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 0.2s ease;
+  position: relative;
+  min-height: 54px;
+  background: none; border: none; font-family: inherit;
+  z-index: 2;
+}
 .nav-item svg { width: 22px; height: 22px; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .nav-item span { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
-.nav-item.active { color: var(--acc); }
-.nav-item.active svg { transform: translateY(-2px) scale(1.08); }
-.nav-item.active::before { content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-  width: 26px; height: 3px; border-radius: 0 0 3px 3px; background: var(--acc);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6); }
-.nav-item:active { background: rgba(56, 189, 248, 0.05); }
-@media (prefers-reduced-motion: reduce) {
-  .nav-item svg { transition: none; }
-  .nav-item.active svg { transform: none; }
+button:focus, button:focus-visible { outline: none; -webkit-focus-ring-color: transparent; }
+
+/* v3.4.108: 选中态 — 代替药丸的视觉指示 (蓝色文字+图标+顶部指示条) */
+.nav-item.active {
+  color: var(--acc);
+}
+.nav-item.active svg {
+  transform: translateY(-1px);
+}
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 32px; height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--acc);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
 }
 
 /* v3.4.43: focus 光环 — 触摸点击无框, 仅键盘焦点显示柔和光环 (自 panel2_preview 移植) */
-button:focus, .nav-item:focus { outline: none; }
-button:focus-visible, .nav-item:focus-visible { outline: none;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4), 0 0 12px rgba(56, 189, 248, 0.12); }
+button:focus-visible, .nav-item:focus-visible {
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4), 0 0 12px rgba(56, 189, 248, 0.12);
+}
 </style>
 </head>
 <body>
@@ -600,7 +714,7 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
 <symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="20"/><line x1="6" y1="8" x2="18" y2="8"/><path d="M3.5 8L6 14.5h-5z"/><path d="M18.5 8L21 14.5h-5z"/></symbol>
 </svg>
 <div class="wrap">
-  <h1 class="brand"><span class="brand-badge"><svg class="ic"><use href="#i-gauge-badge"/></svg></span><span class="brand-title">Atria Monitor</span><span id="dev" class="sub"></span><span class="top-actions"><button id="logBtn" class="btn btn-ghost top-btn" title="查看运行日志"><svg class="ic"><use href="#i-log"/></svg></button><button id="settingsBtn" class="btn btn-ghost top-btn" title="设置"><svg class="ic"><use href="#i-settings"/></svg></button></span></h1>
+  <h1 class="brand"><span class="brand-left"><span class="brand-badge"><svg class="ic"><use href="#i-gauge-badge"/></svg></span><span class="brand-title">Atria Monitor<small>实时监控 · AI 诊断</small></span></span><span id="dev" class="sub"></span></h1>
 
   <!-- v3.4.43: 三面板拆分 — 第1面板: 4核心卡 + 趋势 + AI诊断 + 告警 -->
   <div class="page active" id="page-overview">
@@ -780,11 +894,61 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
   <!-- v3.4.43: 第3面板: 后台进程 (摘要卡已移除, 只保留进程列表) -->
   <div class="page" id="page-proc">
   <h2 class="u-h2-neutral"><svg class="ic"><use href="#i-process"/></svg>后台进程 <span id="procCount" class="sub"></span></h2>
-  <div id="procs" class="proc-list"><div class="empty">无</div></div>
+  <!-- v3.4.97: 列表表头 — 标注每列含义 (PID/进程名/状态/CPU占用/内存/白名单勾选/操作)
+       表头与 procBody 同为 #procs grid 子项; 宽屏双列时左右各一个 ph-row, 窄屏只显示一个 -->
+  <div id="procs" class="proc-list">
+    <div class="proc-head">
+      <div class="ph-row">
+        <span class="ph-pid">PID</span>
+        <span class="ph-name">进程名</span>
+        <span class="ph-stat" title="S=休眠 R=运行 Z=僵尸 D=等待IO T=停止">状态</span>
+        <span class="ph-cpu" title="进程生命周期平均 CPU 占用率 (utime+stime)/elapsed, ≥30% 标橙">CPU%</span>
+        <span class="ph-rss" title="进程实际占用物理内存 (RSS), &gt;400MB 标黄">内存</span>
+        <span class="ph-wl" title="勾选后可批量加入白名单 (设置页→白名单→添加选中应用)">白名单</span>
+        <span class="ph-kill">操作</span>
+      </div>
+      <div class="ph-row">
+        <span class="ph-pid">PID</span>
+        <span class="ph-name">进程名</span>
+        <span class="ph-stat" title="S=休眠 R=运行 Z=僵尸 D=等待IO T=停止">状态</span>
+        <span class="ph-cpu" title="进程生命周期平均 CPU 占用率 (utime+stime)/elapsed, ≥30% 标橙">CPU%</span>
+        <span class="ph-rss" title="进程实际占用物理内存 (RSS), &gt;400MB 标黄">内存</span>
+        <span class="ph-wl" title="勾选后可批量加入白名单 (设置页→白名单→添加选中应用)">白名单</span>
+        <span class="ph-kill">操作</span>
+      </div>
+    </div>
+    <div id="procBody"></div>
+  </div>
   </div><!-- /page-proc -->
 
-<!-- v3.4.43: 底部导航栏 (自 panel2_preview.html 移植) -->
-<nav class="navbar">
+<!-- v3.4.95: 设置页 — 顶栏日志/设置按钮下沉, 设置 tab 变真实页面 -->
+<div class="page" id="page-settings">
+  <h2 class="u-h2-neutral"><svg class="ic"><use href="#i-settings"/></svg>设置</h2>
+  <div class="box" style="padding:14px 16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <span class="brand-badge" style="width:34px;height:34px;border-radius:10px"><svg class="ic"><use href="#i-gauge-badge"/></svg></span>
+      <div style="display:flex;flex-direction:column;gap:1px;min-width:0">
+        <span style="font-size:14px;font-weight:700;letter-spacing:-.02em;color:#f1f5f9">Atria Monitor</span>
+        <span style="font-size:11px;color:#64748b;letter-spacing:.04em">始终值守 · Always on guard</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button id="logBtn" class="btn btn-ghost" style="flex:1;min-width:140px"><svg class="ic"><use href="#i-log"/></svg>查看运行日志</button>
+      <button id="settingsCfgBtn" class="btn btn-ghost" style="flex:1;min-width:140px"><svg class="ic"><use href="#i-settings"/></svg>AI 接口配置</button>
+      <button id="settingsWlBtn" class="btn btn-ghost" style="flex:1;min-width:140px"><svg class="ic"><use href="#i-shield"/></svg>保护白名单</button>
+    </div>
+    <div style="color:#64748b;font-size:12px;line-height:1.8">
+      版本: <span id="cfgVer2"></span><br>
+      日志文件: /data/local/tmp/atria_panel.log<br>
+      状态文件: /data/local/tmp/atria_status.json<br>
+      历史文件: /data/adb/atria_history.jsonl
+    </div>
+  </div>
+</div><!-- /page-settings -->
+
+<!-- v3.4.91: 底部导航栏 — 液态玻璃水滴 (自 nav_glass.html 移植)
+     v3.4.43: 三面板切换 (自 panel2_preview 移植, pageIn 起始 0.35 防白屏) -->
+<nav class="navbar" id="navbar">
   <button class="nav-item active" data-page="page-overview">
     <svg><use href="#i-gauge"/></svg>
     <span>监控</span>
@@ -796,6 +960,10 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
   <button class="nav-item" data-page="page-proc">
     <svg><use href="#i-process"/></svg>
     <span>进程</span>
+  </button>
+  <button class="nav-item" data-page="page-settings">
+    <svg><use href="#i-settings"/></svg>
+    <span>设置</span>
   </button>
 </nav>
 </div>
@@ -847,7 +1015,7 @@ button:focus-visible, .nav-item:focus-visible { outline: none;
 // v3.2.100: 耗电来源显示稳定性 (空锁不注入, 前端过滤纯分隔符)
 // v3.3.0: 版本号进位 v3.2.101 → v3.3.0 (无功能变更, versionCode 33000 避免与 v3.2.100 冲突)
 // __atriaVer and UI now reference this constant instead of duplicating the literal.
-const VER_TAG = 'v3.4.90';
+const VER_TAG = 'v3.4.108';
 const LOG_MAX = 500;
 const logBuf = [];
 // v3.2.28: 日志去重 - 相同 tag+msg 5 秒内只记一次 (drawChart 失败时每帧触发, 60fps 日志洪水直接卡死主线程)
@@ -905,6 +1073,8 @@ const sysValEl = document.getElementById('sysVal'), sysDot = document.getElement
 const ccValEl = document.getElementById('ccVal'), ccDetailEl = document.getElementById('ccDetail');
 const nqValEl = document.getElementById('nqVal'), nqDetailEl = document.getElementById('nqDetail');
 const procEl = document.getElementById('procs'), procCntEl = document.getElementById('procCount');
+// v3.4.97: 进程行挂到 procBody (表头留在 #procs 不参与重建), 增删查都走 procBody
+const procBody = document.getElementById('procBody') || procEl;
 const devEl = document.getElementById('dev'), altEl = document.getElementById('alerts'), alertHistBadge = document.getElementById('alertHistBadge');
 const modEl = document.getElementById('modules');
 // v3.2.28: getContext 防御 (部分 WebView 无 canvas/2d 支持, 启动即崩)
@@ -941,7 +1111,11 @@ function pulse(el) {
   if (!el.classList) return;
   el.classList.remove('pulse');
   // v3.2.52: 用 requestAnimationFrame 重启动画, 取代 void offsetWidth 强制布局回流
-  requestAnimationFrame(() => { el.classList.add('pulse'); });
+  requestAnimationFrame(() => {
+    el.classList.add('pulse');
+    // v3.4.99: 动画结束后移除 pulse 类 — 释放 will-change 合成层, 避免静态数值常驻 GPU 层
+    setTimeout(() => { el.classList.remove('pulse'); }, 420);
+  });
 }
 // v3.2.34: 卡片状态点跟随颜色 (绿/黄/红)
 function setDot(dotEl, color) {
@@ -2186,7 +2360,14 @@ function render(d) {
     }).join(', '));
     });
     const duTxt = parts.join(' | ') || '--';
-    if (duTxt !== _r.du) { _r.du = duTxt; storeD.textContent = storeD.textContent.split(' | ')[0] + ' | ' + duTxt; }
+    // v3.4.97: du 段拼接修复 — 原实现 split(' | ')[0] 取的是"当前 textContent 的第一段",
+    // 但存储详情 (sdTxt) 与 du 段更新时机不同步: sdTxt 变了但 duTxt 没变时, 旧 du 残留;
+    // du 段为空时 parts.join('') = '' → textContent 变成 "存储详情 | --" 永远残留 '--'。
+    // 改为从 _r.sd (存储详情的已渲染值) 拼接, 与 render 的存储段同源
+    if (duTxt !== _r.du) {
+      _r.du = duTxt;
+      storeD.textContent = (_r.sd || '') + ' | ' + duTxt;
+    }
   }
 
   // v3.2.34: 网速 (差值计算)
@@ -2236,8 +2417,8 @@ function render(d) {
       const pkSeen = new Set(), pkList = [];
       // v3.2.52: diff 式更新 — 按 pid 复用已有行, 只更新文本与 class, 不再整表 innerHTML 重建。
       // 任意进程进出时滚动位置天然保留 (DOM 节点被复用), 滚动也不会跳顶。
-      procEl._rowByPid = procEl._rowByPid || {};
-      const _rowByPid = procEl._rowByPid;
+      procBody._rowByPid = procBody._rowByPid || {};
+      const _rowByPid = procBody._rowByPid;
       const _alivePids = {};
       const _mkRow = function (x) {
         const row = document.createElement('div');
@@ -2309,9 +2490,9 @@ function render(d) {
         }
       };
       if (!procs.length) {
-        procEl.innerHTML = '<div class="empty">无进程</div>';
-        procEl._rowByPid = {};
-      } else if (!_bigSwap && procEl.children.length) {
+        procBody.innerHTML = '<div class="empty">无进程</div>';
+        procBody._rowByPid = {};
+      } else if (!_bigSwap && procBody.children.length) {
         // v3.4.32: 增量路径 — pid 集合小波动 (进出 ≤8 行): 复用现有 DOM 行,
         // 只 _fillRow 原地改文本 + 手术式增删, 跳过 textContent='' + 60 次 appendChild 的全量重建
         const _alive = {};
@@ -2327,13 +2508,13 @@ function render(d) {
         });
         // 移除消失进程的行 (DOM 与索引同步, 无残留)
         const _stale = [];
-        Array.prototype.forEach.call(Array.prototype.slice.call(procEl.children), function (c) {
+        Array.prototype.forEach.call(Array.prototype.slice.call(procBody.children), function (c) {
           const pidS = (c.dataset && c.dataset.pid) ? c.dataset.pid : null;
           if (pidS && !_alive[pidS]) _stale.push(c);
         });
         _stale.forEach(function (c) {
           const pidS = c.dataset.pid;
-          procEl.removeChild(c);
+          procBody.removeChild(c);
           delete _rowByPid[pidS];
         });
         // 新进程的行挂到 DOM (尚未 attach 的 _mkRow 产物)
@@ -2345,11 +2526,11 @@ function render(d) {
         if (_newRows.length) {
           const frag2 = document.createDocumentFragment();
           _newRows.forEach(function (r) { frag2.appendChild(r); });
-          procEl.appendChild(frag2);
+          procBody.appendChild(frag2);
         }
         // 顺序修正: pid 顺序与 DOM 不一致时才重排 (rss 排序变化导致换位), 一致则完全跳过
         let _orderOk = true;
-        const _kids = procEl.children;
+        const _kids = procBody.children;
         let _i = 0, _n = _kids.length;
         for (let k = 0; k < procs.length; k++) {
           while (_i < _n && !(_kids[_i].dataset && _kids[_i].dataset.pid)) _i++;
@@ -2360,11 +2541,11 @@ function render(d) {
         if (!_orderOk) {
           const frag3 = document.createDocumentFragment();
           procs.forEach(function (x) { const r = _rowByPid[String(x.pid)]; if (r) frag3.appendChild(r); });
-          procEl.appendChild(frag3);
+          procBody.appendChild(frag3);
         }
       } else {
         // keep the empty-state out of the way
-        if (procEl.firstChild && procEl.firstChild.className === 'empty') procEl.innerHTML = '';
+        if (procBody.firstChild && procBody.firstChild.className === 'empty') procBody.innerHTML = '';
         const frag = document.createDocumentFragment();
         procs.forEach(function (x) {
           const pidS = String(x.pid);
@@ -2378,8 +2559,8 @@ function render(d) {
         Object.keys(_rowByPid).forEach(function (pidS) {
           if (!_alivePids[pidS]) { delete _rowByPid[pidS]; }
         });
-        procEl.textContent = '';
-        procEl.appendChild(frag);
+        procBody.textContent = '';
+        procBody.appendChild(frag);
       }
       // v3.2.34: 更新全局包名清单 (供白名单"添加选中应用"使用)
       window.__atriaSelPkgs = pkList;
@@ -2458,8 +2639,15 @@ let _sideTick = 0;
 
 async function _fetchSidecar(path) {
   try {
-    // v3.4.59: 超时保护 — poll 里 sidecar 读取裸 await, exec 卡住时整个 poll 挂起报"采集失败";
-    // execWithTimeout 内部走 execFn (由 awaitExec 保证就绪)
+    // v3.4.100: fetch 直读优先 — 与 status.json 同通道 (file:// fetch ~10ms, 0 阻塞)。
+    // 原实现直接走 exec base64, 每次阻塞 JS 线程 500ms+; 而 sidecar 是准静态数据
+    // (模块列表/应用名), 内容变化时 collect_loop 会重写文件, fetch no-store 每次拿最新的
+    try {
+      const resp = await fetchWithTimeout('file://' + path, { cache: 'no-store' }, 3000);
+      const txt = await resp.text();
+      if (txt && txt.trim()) return txt;
+    } catch (e) {}
+    // v3.4.59: fetch 失败回退 exec — 超时保护 (poll 里 sidecar 读取裸 await, exec 卡住时整个 poll 挂起)
     const b64 = await execWithTimeout('base64 -w0 ' + path, 6000);
     if (!b64 || !b64.trim()) return null;
     return decodeURIComponent(escape(atob(b64.trim())));
@@ -2576,25 +2764,68 @@ async function awaitExec() {
 let _fnBusy = false;
 // v3.4.59: poll 通道超时连续计数 — 单次 exec 阻塞抖动不报错, 连续 3 次才显示"采集失败"
 let _pollTimeoutStreak = 0;
+// v3.4.101: file:// fetch 连续失败计数 — 本设备 WebView 禁止 file:// fetch (实测 1060 次全失败),
+// 连续 3 次后标记 _statusFetchBad, 后续轮询直接走 exec 通道, 省掉每次 ~51ms 的无效异步 fetch
+let _statusFetchFail = 0;
+let _statusFetchBad = false;
+// v3.4.101: 冷启动 IIFE 成功读取 status.json 的时间戳与内容 — 首屏 poll 复用, 消除双读
+let _statusExecOkAt = 0;
+let _statusExecOkData = null;
 async function poll() {
+  // v3.4.101: 互斥锁 — 冷启动时 setTimeout(poll,1200) 与 _loadApiP 的 setTimeout(poll,1500)
+  // 仅隔 300ms 并发, 两个实例各自 fetchStatusViaExec 读一次 status.json (双读实证)。
+  // 后到的实例直接跳过, 数据 5s 后下一轮自然会刷
+  if (poll._busy) return;
+  poll._busy = true;
+  try { await _pollBody(); } finally { poll._busy = false; }
+}
+async function _pollBody() {
   // v3.4.56: 不再因 _fnBusy 跳过整个 poll — AI 诊断 3-15s 期间面板数据完全冻结
   // (内存/CPU/温度卡片不更新), 用户体感"AI 诊断时面板卡死"。
   // AI 请求走原生 fetch 不占 exec 通道也不阻塞渲染, poll 数据刷新与诊断可并行。
   // 诊断渲染由 aiBusy 互斥 (renderAi 与 poll 的 render 各自原子), 不会打架。
   try {
     let out;
-    try { out = await fetchStatus(); }
-    // v3.4.16: fetch 失败回退改用 base64 单行读取 (exec 直跑 collect.sh 输出被截断且无 power 字段)
-    catch (e1) { out = await fetchStatusViaExec(); }
+    // v3.4.101: fetch-first 已实证在本设备永不成功 (1060 次 fetch_err / 0 次 done),
+    // 每次失败浪费 ~51ms 异步开销。已知设备直接走 exec, 保留 fetch 给未知设备作兼容探测。
+    // _execOkAt: exec 通道最近成功时间戳, 10s 内不重复发起 (冷启动 IIFE 与首屏 poll 竞争时去重)
+    const _nowMs = Date.now();
+    // v3.4.101: 冷启动 8s 内 IIFE 已成功读过 status.json → 直接复用, 避免首屏 poll 双读
+    if (_statusExecOkData && _nowMs - (_statusExecOkAt || 0) < 8000) {
+      out = _statusExecOkData;
+      _statusExecOkData = null;   // 只复用一次
+    } else if (!_statusFetchBad && (typeof fetch === 'function')) {
+      try {
+        out = await fetchStatus();
+      } catch (e1) {
+        // 连续失败标记 — 后续轮询直接走 exec, 省掉每次 51ms 的无效 fetch
+        _statusFetchFail = (_statusFetchFail || 0) + 1;
+        if (_statusFetchFail >= 3) _statusFetchBad = true;
+        out = await fetchStatusViaExec();
+      }
+    } else {
+      out = await fetchStatusViaExec();
+    }
     // v3.4.59: JSON 解析防护 — 竞态窗口: fetch/exec 读取瞬间 collect_loop 正在 mv 替换文件,
     // 或 exec 桥接对 15KB 输出截断, 会拿到残缺 JSON ("Expected ',' or '}'" 类错误)。
     // 残缺时重试一次 exec 通道 (base64 自带完整性校验: 长度 % 4 == 0), 仍失败才抛错。
     let data = null;
     try { data = JSON.parse(out); }
     catch (eJson) {
-      dlog('poll', 'JSON 解析失败 (' + String(eJson.message || eJson).slice(0, 50) + ', out ' + String(out).length + ' 字符), 重试 exec 通道');
-      out = await fetchStatusViaExec();
-      data = JSON.parse(out);
+      // v3.4.101: 延迟重试 — 残缺 JSON 多为 collect_loop 正在 mv 替换 status.json 的竞态窗口,
+      // 立即重读大概率又撞上同一窗口 (双读 + 仍失败)。等 300ms 让 mv 落地再读。
+      dlog('poll', 'JSON 解析失败 (' + String(eJson.message || eJson).slice(0, 50) + ', out ' + String(out).length + ' 字符), 延迟 300ms 重试');
+      await new Promise(r => setTimeout(r, 300));
+      try {
+        out = await fetchStatusViaExec();
+        data = JSON.parse(out);
+      } catch (e2) {
+        // v3.4.101: 重试仍失败时用上一帧有效数据兜底 — 旧实现直接抛错导致面板显示"采集失败",
+        // 但其实上一帧数据完全可用 (timestamp 去重会跳过渲染, 不会显示旧数据为新)
+        dlog('poll', '重试仍失败, 使用上一帧数据兜底');
+        if (latestData && latestData.mem) { return; }   // 静默跳过本轮, 下轮 5s 后再试
+        throw e2;   // 首屏没有上一帧时才真正抛错
+      }
     }
     if (!data || !data.mem) throw new Error('status json no mem');
     // v3.4.40: 静态字段 sidecar 合并 — modules/labels 为空时从 sidecar 补
@@ -2609,7 +2840,7 @@ async function poll() {
     }
     // v3.4.59: 数据成功拿到 — 清除超时计数与错误显示 (通道已恢复)
     _pollTimeoutStreak = 0;
-    if (_r.err) { _r.err = ''; try { devEl.textContent = _r.dev || ''; } catch (_) {} }
+    if (_r.err) { _r.err = ''; try { devEl.textContent = _r.dev || ''; } catch (_) {} devEl.classList.remove('err'); }  /* v3.4.96: 恢复绿点 */
     // v3.2.34: timestamp 未变化时跳过 analyze+render (页面切回前台时常遇到一串重复数据)
     if (latestData && data.timestamp === latestData.timestamp) return;
     // v3.2.28: 内容指纹去重 — timestamp 变了但数值完全相同 (后台采集频率高于面板) 也跳过, 避免无谓渲染
@@ -2618,10 +2849,11 @@ async function poll() {
     // v3.2.99 F3: 告警历史徽标 (30s 刷一次, 内存命中 15s 内不重复读)
     if (!alertHistBadge._t || Date.now() - alertHistBadge._t > 30000) {
       alertHistBadge._t = Date.now();
-      loadAlertHist().then(rows => {
-        // v3.4.23: 顺带刷新动作注册表与效果记录 (cooldown 判定与 AI payload 用)
-        loadActionReg().catch(() => {});
-        loadActionEffects().catch(() => {});
+      // v3.4.101: 三路合并成一次 exec — v3.4.100 的 Promise.all 并行只是发起并行,
+      // ksu.exec 底层同步串行, 三路仍是 3 次桥接开销 + 排队阻塞 (实测 174+381+655ms)。
+      // 现在用一条命令 base64 -w0 单行返回三个文件 (绕开只回第一行限制),
+      // 前端解码按 ATRIA_SEP 拆分, 3 次阻塞 → 1 次, 缓存逻辑 (15s/20s/30s) 各自保留。
+      loadMergedHist().then(([rows]) => {
         if (rows && rows.length) alertHistBadge.textContent = '（历史 ' + rows.length + ' 条）';
       }).catch(() => {});
     }
@@ -2655,7 +2887,7 @@ async function poll() {
       _pollTimeoutStreak = 0;
     }
     const errTxt = '采集失败 [' + apiMode + ']：' + msg.slice(0, 40);
-    if (errTxt !== _r.err) { _r.err = errTxt; devEl.textContent = errTxt; }
+    if (errTxt !== _r.err) { _r.err = errTxt; devEl.textContent = errTxt; devEl.classList.add('err'); }  /* v3.4.96: 失败红点 */
     if (toastFn) { try { toastFn('Atria: 采集失败'); } catch (_) {} }
   }
 }
@@ -2667,7 +2899,10 @@ async function loadAiConfig() {
       out = await execFn('cat ' + AI_CONF + ' 2>/dev/null');
       if (out && out.trim()) {
         try {
-          await execFn("echo '" + escSh(out.trim()) + "' > " + AI_CONF_PERSIST + " && chmod 600 " + AI_CONF_PERSIST);
+          // v3.4.108: BUG 修复 — echo 会把 JSON 字符串内的 \n (转义序列) 当作真实换行解释,
+          // 写入的文件含裸换行, 下次 loadAiConfig 的 JSON.parse 报 "Bad control character" 失败。
+          // 改用 printf %s: 原样写入不解释转义序列 (实测 echo 与 printf 的 \n 处理差异)
+          await execFn("printf %s '" + escSh(out.trim()) + "' > " + AI_CONF_PERSIST + " && chmod 600 " + AI_CONF_PERSIST);
         } catch (_) {}
       }
     }
@@ -2676,7 +2911,8 @@ async function loadAiConfig() {
   aiConfigLoadedAt = Date.now();
 }
 async function saveAiConfig(cfg) {
-  await execFn("echo '" + escSh(JSON.stringify(cfg)) + "' > " + AI_CONF_PERSIST + " && chmod 600 " + AI_CONF_PERSIST);
+  // v3.4.108: 同 loadAiConfig — echo -> printf %s, 避免 JSON 内 \n 被解释成真实换行损坏配置文件
+  await execFn("printf %s '" + escSh(JSON.stringify(cfg)) + "' > " + AI_CONF_PERSIST + " && chmod 600 " + AI_CONF_PERSIST);
   aiConfig = cfg;
   aiConfigLoadedAt = Date.now();
 }
@@ -2723,6 +2959,52 @@ async function appendDiagHist(res, actionsTaken) {
 // 持久化到 /data/adb/atria_alert_history.jsonl (照抄 appendDiagHist 的 jsonl 模式)
 // 只保留最近 40 条, 高级别告警 (severity=高) 触发本地动作链 (F4)
 const ALERT_HIST_FILE = '/data/adb/atria_alert_history.jsonl';
+// v3.4.101: 三路历史合并读取 — 一次 exec 拿回 alert/reg/effect 三个 jsonl,
+// base64 -w0 单行输出绕开 exec 桥接只回第一行的限制, 前端解码后按分隔符拆分。
+// 各路的内存缓存 (15s/20s/30s) 仍然保留 — 缓存命中时连这一次 exec 都省掉。
+// 三个文件任一读取失败不影响其他两个 (分隔符拆分天然容错)。
+const HIST_MERGE_SEP = '===ATRIA_SEP===';
+async function loadMergedHist() {
+  // 三路缓存全部命中时直接返回, 不走 exec
+  const _a = (_alertHistCache && Date.now() - _alertHistAt < 15000) ? _alertHistCache : null;
+  const _r = (_actionReg && Date.now() - _actionRegAt < 20000) ? _actionReg : null;
+  const _e = (_effectCache && Date.now() - _effectCacheAt < 30000) ? _effectCache : null;
+  if (_a && _r && _e) return [_a, _r, _e];
+  try {
+    const exec = (typeof execFn === 'function') ? execFn : (await awaitExec().catch(() => null));
+    if (!exec) return [_a || [], _r || [], _e || []];
+    // 一条命令: 分隔符 + 三个 tail, 整体 base64 -w0 单行返回
+    const cmd = "{ echo '" + HIST_MERGE_SEP + "'; tail -40 " + ALERT_HIST_FILE + " 2>/dev/null; "
+      + "echo '" + HIST_MERGE_SEP + "'; tail -60 " + ACTION_REG_FILE + " 2>/dev/null; "
+      + "echo '" + HIST_MERGE_SEP + "'; tail -12 " + ACTION_EFFECT_FILE + " 2>/dev/null; "
+      + "echo '===ATRIA_END==='; } | base64 -w0";
+    const b64 = await exec(cmd);
+    const _b = String(b64 || '').trim();
+    if (!_b || _b.length % 4 !== 0) throw new Error('merged hist base64 truncated ' + _b.length);
+    const txt = decodeURIComponent(escape(atob(_b)));
+    // 按分隔符拆成三段: parts[0]=空, [1]=alert, [2]=reg, [3]=effect, [4]=END
+    const parts = txt.split(HIST_MERGE_SEP);
+    const parse = (s) => String(s || '').split('\n').filter(l => l.trim()).map(l => {
+      try { return JSON.parse(l); } catch (e) { return null; }
+    }).filter(x => x && (x.title || x.action));
+    const rowsA = parse(parts[1]);
+    const rowsR = parse(parts[2]);
+    const rowsE = parse(parts[3]);
+    // 只更新未命中缓存的那几路 (命中的保留新鲜缓存)
+    if (!_a && rowsA.length) { _alertHistCache = rowsA; _alertHistAt = Date.now(); }
+    if (!_r && rowsR.length) { _actionReg = rowsR; _actionRegAt = Date.now(); }
+    if (!_e && rowsE.length) { _effectCache = rowsE; _effectCacheAt = Date.now(); }
+    return [_alertHistCache || [], _actionReg || [], _effectCache || []];
+  } catch (e) {
+    // 合并命令失败时回退: 三路各自独立读 (旧路径保持可用)
+    try {
+      const a = await loadAlertHist();
+      const r = await loadActionReg();
+      const e2 = await loadActionEffects();
+      return [a, r, e2];
+    } catch (e3) { return [_a || [], _r || [], _e || []]; }
+  }
+}
 const ALERT_HIST_MAX = 40;
 let _alertHistCache = null, _alertHistAt = 0;
 async function loadAlertHist() {
@@ -3975,6 +4257,8 @@ aiAutoEl.addEventListener('change', e => {
       const out = await fetchStatusViaExec();
       const d0 = out && out.trim() ? JSON.parse(out) : null;
       bootStep('exec_fallback_ok');
+      // v3.4.101: 标记本次成功读取 — 1.2s 后的首屏 poll 会复用, 避免冷启动双读 status.json
+      if (d0 && d0.mem) { _statusExecOkAt = Date.now(); _statusExecOkData = out; }
       if (d0 && d0.mem) renderFast(d0);
     } catch (e2) {
       bootStep('exec_fallback_err');
@@ -4000,16 +4284,31 @@ aiAutoEl.addEventListener('change', e => {
   loadAiConfig().catch(() => {});
   // v3.2.51: 首屏渲染让出主线程后再开始轮询 (原启动即 poll, 与 renderFast 争抢同一帧)
   setTimeout(() => poll(), 1200);
-  // v3.2.75: 卡顿探针自动落盘 — 每 15s 把 exec_block 日志追加到 /data/local/tmp/atria_exec_trace
+  // v3.2.75: 卡顿探针自动落盘 — 每 60s 把 exec_block 日志追加到 /data/local/tmp/atria_exec_trace
+  // v3.4.100: 15s → 60s — 落盘本身就要过一次 exec 通道 (echo base64 | base64 -d),
+  // 探针落盘频率越高, 自己贡献的 exec_block 越多 (实测 trace 里 echo/base64 -d 占比不低)。
+  // 日志 ring buffer 500 条, 60s 内不会丢; 真卡顿时日志弹窗实时可看, 不依赖落盘
+  // v3.4.101: 落盘去重 — 原实现 slice(-40) 窗口重叠 + __lastEbN 只比数量,
+  // 60s 内新增 <40 条时整个窗口被重复追加 (18:54:33 同一条出现 4 次实证)。
+  // 改为记录已落盘的日志总位置, 只追加新增部分, ring buffer 500 条回绕时按内容哈希去重
   setInterval(() => {
     try {
-      const lines = (window.__atriaLogs || []).filter(l => String(l).indexOf('exec_block') >= 0).slice(-40);
-      if (!lines.length || lines.length === window.__lastEbN) return;
-      window.__lastEbN = lines.length;
-      const b64 = btoa(unescape(encodeURIComponent(lines.join('\n') + '\n')));
+      const all = (window.__atriaLogs || []);
+      const lines = all.filter(l => String(l).indexOf('exec_block') >= 0);
+      if (!lines.length) return;
+      // ring buffer 回绕检测: 总长度小于已记录位置说明回绕了, 重新从头发
+      if (window.__ebSentPos > all.length) window.__ebSentPos = 0;
+      // 取未落盘的部分 (位置在 all 里的相对位置)
+      const _n = lines.length;
+      if (_n <= window.__ebSentN) return;   // 没有新增
+      // 计算新增条数: ring buffer 里 lines 是连续的, 新增 = 尾部差值
+      const _new = lines.slice(window.__ebSentN);
+      if (!_new.length) return;
+      window.__ebSentN = _n;
+      const b64 = btoa(unescape(encodeURIComponent(_new.join('\n') + '\n')));
       if (execFn) execFn("echo '" + b64 + "' | base64 -d >> /data/local/tmp/atria_exec_trace 2>/dev/null");
     } catch (_) {}
-  }, 15000);
+  }, 60000);
   bootStep('iife_end');
   // v3.2.29: visibilitychange 主动取消隐藏期间的过期渲染帧
   document.addEventListener('visibilitychange', () => {
@@ -4058,21 +4357,6 @@ aiAutoEl.addEventListener('change', e => {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <h2 style="margin:0"><svg class="ic"><use href="#i-settings"/></svg>设置</h2>
       <button id="settingsCloseBtn" class="btn btn-ghost" style="padding:2px 10px;font-size:12px"><svg class="ic"><use href="#i-x"/></svg></button>
-    </div>
-    <!-- v3.4.47: 品牌锚点 - 设置弹窗顶部品牌行 -->
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:12px;border-radius:12px;background:linear-gradient(160deg, rgba(30,41,59,.55), rgba(15,23,42,.35));border:1px solid rgba(148,163,184,.14)">
-      <span class="brand-badge" style="width:30px;height:30px;border-radius:9px"><svg class="ic"><use href="#i-gauge-badge"/></svg></span>
-      <div style="display:flex;flex-direction:column;gap:1px;min-width:0">
-        <span style="font-size:14px;font-weight:700;letter-spacing:-.02em;color:#f1f5f9">Atria Monitor</span>
-        <span style="font-size:11px;color:#64748b;letter-spacing:.04em">始终值守 · Always on guard</span>
-      </div>
-    </div>
-    <!-- v3.4.48: 技术信息区 - 路径与版本下沉, 品牌区更干净 -->
-    <div style="margin-top:10px;color:#64748b;font-size:12px">
-      版本: <span id="cfgVer"></span><br>
-      日志文件: /data/local/tmp/atria_panel.log<br>
-      状态文件: /data/local/tmp/atria_status.json<br>
-      历史文件: /data/adb/atria_history.jsonl
     </div>
     <div style="font-size:13px;color:#94a3b8;line-height:2">
       <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="cfgAiAuto2"> 打开面板时自动 AI 诊断</label>
@@ -5063,34 +5347,166 @@ async function ensureCandidateIcons(pkgs, box) {
   if (closeBtn) closeBtn.addEventListener('click', function () { try { modal.style.display = 'none'; modalOpen = false; } catch (e) {} });
 })();
 
-  bind('settingsBtn', function () {
+  // v3.4.108: 此按钮文案是「AI 接口配置」, 原实现却打开 settingsModal (白名单编辑器),
+  // 文案与功能不符。改为打开 aiModal (真正的 AI 接口配置: Base URL/API Key/模型名)。
+  // 白名单入口移至设置页新增的「保护白名单」按钮 (settingsWlBtn)。
+  bind('settingsCfgBtn', function () {
+    var m = $('aiModal');
+    if (!m) return;
+    var open = m.style.display !== 'flex';
+    m.style.display = open ? 'flex' : 'none';
+    modalOpen = open;
+    if (open) {
+      var urlEl = $('cfgUrl'), keyEl = $('cfgKey'), modelEl = $('cfgModel');
+      var fillCfg = function (cfg) {
+        var c = cfg || null;
+        if (urlEl) urlEl.value = (c && c.base_url) || 'https://api.deepseek.com/v1';
+        if (keyEl) keyEl.value = (c && c.api_key) || '';
+        if (modelEl) modelEl.value = (c && c.model) || 'deepseek-chat';
+      };
+      if (typeof ensureAiConfig === 'function') {
+        ensureAiConfig().then(fillCfg).catch(function () { fillCfg(null); });
+      } else {
+        fillCfg(null);
+      }
+    }
+  });
+  bind('settingsWlBtn', function () {
     var m = $('settingsModal');
     if (!m) return;
     var open = m.style.display !== 'flex';
     m.style.display = open ? 'flex' : 'none';
     modalOpen = open;
-    var v = $('cfgVer');
+    var v = $('cfgVer'), v2 = $('cfgVer2');
     if (v) { try { v.textContent = window.__atriaVer || ''; } catch (e) {} }
-    // v3.2.34: 打开设置时加载白名单
+    if (v2) { try { v2.textContent = window.__atriaVer || ''; } catch (e) {} }
     if (open) loadWhitelist();
   });
   bind('settingsCloseBtn', function () { var m = $('settingsModal'); if (m) m.style.display = 'none'; modalOpen = false; });
 })();
 
-// v3.4.43: 底部导航栏 — 三面板切换 (自 panel2_preview 移植, pageIn 起始 0.35 防白屏)
+// v3.4.108: 底部导航栏 — 朴素 Tab 栏 (药丸/弹簧拖动已移除)
+// v3.4.43: pageIn 起始 0.35 防白屏
 (function () {
-  var btns = document.querySelectorAll('.nav-item');
-  if (!btns.length) return;
-  btns.forEach(function (btn) {
+  var navbar = document.getElementById('navbar');
+  if (!navbar) return;
+  var items = Array.prototype.slice.call(navbar.querySelectorAll('.nav-item'));
+  var pages = items.map(function (b) {
+    var id = b.getAttribute('data-page');
+    return id ? document.getElementById(id) : null;
+  });
+
+  /* 页面切换: page-settings 是虚拟页 — 打开设置弹窗, 不切页面 */
+  function showPage(idx) {
+    pages.forEach(function (p, i) {
+      if (!p) return;
+      p.classList.toggle('active', i === idx);
+    });
+  }
+  function openSettings() {
+    var m = document.getElementById('settingsModal');
+    if (m) m.style.display = '';
+  }
+  function activate(idx) {
+    items.forEach(function (b) { b.classList.remove('active'); });
+    items[idx].classList.add('active');
+    showPage(idx);  /* v3.4.95: page-settings 已是真实页面, 直接切换 */
+  }
+  function currentActive() {
+    var idx = 0;
+    items.forEach(function (b, index) { if (b.classList.contains('active')) idx = index; });
+    return idx;
+  }
+
+  /* v3.4.108: 点击切换 (药丸移除后, 点击是唯一的 Tab 切换方式) */
+  items.forEach(function (btn, i) {
     btn.addEventListener('click', function () {
-      var target = btn.getAttribute('data-page');
-      if (!target) return;
-      btns.forEach(function (b) { b.classList.toggle('active', b === btn); });
-      document.querySelectorAll('.page').forEach(function (p) {
-        p.classList.toggle('active', p.id === target);
-      });
+      activate(i);
     });
   });
+
+  /* 窗口尺寸变化时无需重定位 (无药丸) */
+
+  /* v3.4.99: 页面隐藏时无需停动画 (无弹簧) */
+
+  /* ===== v3.4.98: 内容区左右滑动切换页面 (跟手平移 + 阈值/速度判定) ===== */
+  /* v3.4.108: 滑动切换保留, 药丸同步改为 activate 直接切换 */
+  var swipeZone = document.querySelector('.wrap');
+  if (swipeZone) {
+    var SWIPE_THRESHOLD = 0.18;   /* 屏幕宽度比例阈值 */
+    var SWIPE_VELOCITY = 1.2;     /* 速度阈值 px/ms — 慢速长滑不误触, 快速轻扫即切 */
+    var touch = { active: false, startX: 0, startY: 0, curX: 0, curY: 0, startTime: 0, tracking: false };
+
+    swipeZone.addEventListener('pointerdown', function (e) {
+      /* v3.4.98: 导航栏/弹窗上的手势不接管 — navbar 在 wrap 内, 事件会冒泡过来 */
+      if (e.target.closest && e.target.closest('.navbar, .modal, .modal-card')) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      touch.active = true;
+      touch.startX = e.clientX; touch.startY = e.clientY;
+      touch.curX = e.clientX; touch.curY = e.clientY;
+      touch.startTime = performance.now();
+      touch.tracking = false;
+    });
+
+    window.addEventListener('pointermove', function (e) {
+      if (!touch.active) return;
+      touch.curX = e.clientX; touch.curY = e.clientY;
+      var dx = touch.curX - touch.startX;
+      var dy = touch.curY - touch.startY;
+      /* 水平滑动为主才接管 (避免误触纵向滚动) */
+      if (!touch.tracking && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        touch.tracking = true;
+        pages.forEach(function (p) { if (p) p.classList.add('swiping'); });
+      }
+      if (touch.tracking) {
+        var cur = pages[currentActive()];
+        if (cur) cur.style.transform = 'translateX(' + dx + 'px)';
+      }
+    });
+
+    function endSwipe() {
+      if (!touch.active) return;
+      touch.active = false;
+      var dx = touch.curX - touch.startX;
+      var dt = performance.now() - touch.startTime;
+      var velocity = dt > 0 ? Math.abs(dx) / dt : 0;
+      var w = window.innerWidth;
+      var cur = pages[currentActive()];
+
+      if (touch.tracking && cur) {
+        var shouldSwitch = Math.abs(dx) > w * SWIPE_THRESHOLD || velocity > SWIPE_VELOCITY;
+        if (shouldSwitch) {
+          var dir = dx < 0 ? 1 : -1;
+          var next = currentActive() + dir;
+          if (next >= 0 && next < items.length) {
+            /* 滑出动画 → 切换页面 */
+            cur.style.transition = 'transform 0.18s cubic-bezier(0.2, 0, 0, 1), opacity 0.18s';
+            cur.style.transform = 'translateX(' + (dir * -w * 0.3) + 'px)';
+            cur.style.opacity = '0';
+            setTimeout(function () {
+              cur.style.transition = ''; cur.style.transform = ''; cur.style.opacity = '';
+              /* v3.4.98: 清所有页的 swiping (pointermove 时加到了全部页面) */
+              pages.forEach(function (p) { if (p) p.classList.remove('swiping'); });
+              activate(next);
+            }, 180);
+            touch.tracking = false;
+            return;
+          }
+        }
+        /* 回弹 */
+        cur.style.transition = 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)';
+        cur.style.transform = '';
+        setTimeout(function () {
+          cur.style.transition = '';
+          /* v3.4.98: 清所有页的 swiping, 不止当前页 */
+          pages.forEach(function (p) { if (p) p.classList.remove('swiping'); });
+        }, 200);
+      }
+      touch.tracking = false;
+    }
+    window.addEventListener('pointerup', endSwipe);
+    window.addEventListener('pointercancel', endSwipe);
+  }
 })();
 
 // ============================================================
@@ -5237,21 +5653,46 @@ const guardValEl = document.getElementById('guardVal');
 const guardDotEl = document.getElementById('guardDot');
 const guardDetailEl = document.getElementById('guardDetail');
 
+// v3.4.100: guard 状态优先走 fetch 直读 (同 status.json 通道, 0 阻塞),
+// fetch 失败再回退 exec base64。exec 桥接同步阻塞 JS 线程 500ms-1.2s,
+// 而 file:// fetch 仅 ~10ms — guard 是最高频的固定轮询 (每 15s 一次), 改直读收益最大。
 function loadGuardState(exec) {
+  // v3.4.100: fetch 直读路径 — 文件是单行 JSON, 直接 text() 即可
+  if (typeof fetchWithTimeout === 'function') {
+    return fetchWithTimeout('file://' + GUARD_STATE_FILE, { cache: 'no-store' }, 3000)
+      .then(function (r) { return r.text(); })
+      .then(function (txt) {
+        if (!txt || !txt.trim()) return _guardParseB64(exec, '');
+        return _guardParseTxt(txt);
+      })
+      .catch(function () {
+        // fetch 失败 (file:// 偶发被拒) 回退 exec 通道
+        if (!exec) return null;
+        return Promise.resolve(exec('base64 -w0 ' + GUARD_STATE_FILE + ' 2>/dev/null')).then(function (out) {
+          return _guardParseB64(exec, out);
+        }).catch(function () { return null; });
+      });
+  }
   if (!exec) return Promise.resolve(null);
   return Promise.resolve(exec('base64 -w0 ' + GUARD_STATE_FILE + ' 2>/dev/null')).then(function (out) {
-    var b64 = String(out || '').replace(/\s+/g, '');
-    if (!b64) return null;
-    var txt = decodeURIComponent(escape(atob(b64)));
-    var line = String(txt).split('\n')[0].trim();
-    var st = null;
-    try { st = JSON.parse(line); } catch (e) {
-      var s = line.indexOf('{'), e2 = line.lastIndexOf('}');
-      if (s >= 0 && e2 > s) st = JSON.parse(line.slice(s, e2 + 1));
-    }
-    window.__atriaGuardState = st || null;
-    return st;
+    return _guardParseB64(exec, out);
   }).catch(function () { return null; });
+}
+// v3.4.100: 拆出解析逻辑, fetch/exec 两路共用
+function _guardParseB64(exec, out) {
+  var b64 = String(out || '').replace(/\s+/g, '');
+  if (!b64) return null;
+  try { return _guardParseTxt(decodeURIComponent(escape(atob(b64)))); } catch (e) { return null; }
+}
+function _guardParseTxt(txt) {
+  var line = String(txt || '').split('\n')[0].trim();
+  var st = null;
+  try { st = JSON.parse(line); } catch (e) {
+    var s = line.indexOf('{'), e2 = line.lastIndexOf('}');
+    if (s >= 0 && e2 > s) st = JSON.parse(line.slice(s, e2 + 1));
+  }
+  window.__atriaGuardState = st || null;
+  return st;
 }
 
 function loadGuardLog(exec) {
@@ -5272,15 +5713,17 @@ function loadGuardLog(exec) {
   }).catch(function () { return null; });
 }
 
-// v3.4.80: 格机防护卡片轮询 — 15s 一次 (状态文件极小, 读取 <10ms)
+// v3.4.100: 轮询 15s → 30s — guard 状态是准静态的 (设备管理器数/拦截次数),
+// 没必要 15s 刷一次。且原实现先 awaitExec 等 exec 通道就绪才读,
+// 通道未就绪时整个轮询直接退出。改 fetch 优先: exec 未就绪也能读, 失败再回退。
 let guardBusy = false;
 async function pollGuardState() {
   if (guardBusy) return;
   guardBusy = true;
   try {
+    // v3.4.100: exec 可选 — fetch 直读成功时根本用不到它
     let exec = null;
-    try { exec = await awaitExec(); } catch (e) { exec = null; }
-    if (!exec) return;
+    try { exec = (typeof execFn === 'function') ? execFn : (await awaitExec().catch(() => null)); } catch (e) { exec = null; }
     const st = await loadGuardState(exec);
     if (!st) {
       // 状态文件不存在 = 守护进程未启动
@@ -5326,7 +5769,7 @@ async function pollGuardState() {
 }
 
 window.addEventListener('load', () => { setTimeout(pollGuardState, 4000); });
-setInterval(pollGuardState, 15000);   // 15s 轮询 (状态文件 ~120B, 读取极快)
+setInterval(pollGuardState, 30000);   // v3.4.100: 15s → 30s (准静态状态, fetch 直读 0 阻塞)
 
 
 </script>

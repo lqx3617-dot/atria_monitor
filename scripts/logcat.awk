@@ -6,7 +6,8 @@
   # 正确: 先转义反斜杠, 再把 " 转成 \"
   gsub(/\\/, "\\\\")
   gsub(/"/, "\\\"")
-  if (index($0, "|")) next
+  # v3.4.108: 移除原 if (index($0, "|")) next — 原防止 sed 替换被 | 击穿 (同 Bug#1),
+  # 现 inject_logcat 已改用 awk index/substr, | 不再是问题字符
   if (match($0, /^[0-9-]+ [0-9:.]+ +[0-9]+ +[0-9]+ +[A-Z] [^:]*:/)) {
     head = substr($0, 1, RLENGTH)
     msg = substr($0, RLENGTH + 1)

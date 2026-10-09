@@ -387,6 +387,27 @@ typedef struct {
     int npkg;
 } Arsc;
 
+/* v3.4.108 Bug #5: Arsc 释放 — val 全局池 + 每个 pkg 的 key/type 池与 TChunk 数组 */
+static void arsc_free(Arsc *a){
+    if (a->val.items){
+        for (int i = 0; i < a->val.n; i++) free(a->val.items[i]);
+        free(a->val.items);
+    }
+    for (int p = 0; p < a->npkg; p++){
+        PkgInfo *pk = &a->pkgs[p];
+        if (pk->key.items){
+            for (int i = 0; i < pk->key.n; i++) free(pk->key.items[i]);
+            free(pk->key.items);
+        }
+        if (pk->type.items){
+            for (int i = 0; i < pk->type.n; i++) free(pk->type.items[i]);
+            free(pk->type.items);
+        }
+        if (pk->tc) free(pk->tc);
+    }
+    memset(a, 0, sizeof(*a));
+}
+
 typedef struct { uint16_t dens; uint8_t dt; uint32_t data; } Cand;
 
 static void arsc_parse(const uint8_t *buf, size_t len, Arsc *a){
@@ -902,6 +923,9 @@ static int extract_apk(const char *apkpath, const char *outdir, const char *base
     if (data) free(data);
     if (arscbuf) free(arscbuf);
     if (mxml) free(mxml);
+    /* v3.4.108 Bug #5: 补 ax/a 释放 (原只 free svg/data/arscbuf/mxml, 每解析一个 APK 泄漏 Axml+Arsc) */
+    axml_free(&ax);
+    arsc_free(&a);
     zip_close(&z);
     return rc;
 }
