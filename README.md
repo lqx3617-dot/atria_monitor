@@ -31,18 +31,19 @@
 
 ## 二、主要功能
 
-### 1. 实时监控（4 秒一轮，60+ 项指标）
+### 1. 实时监控（亮屏 4 秒一轮，息屏自动降频到 30 秒，60+ 项指标）
 
 | 维度 | 内容 |
 |---|---|
 | 内存 | 总量/已用/占比 + 趋势曲线 |
 | CPU | 整体占用 + **每个进程**的 CPU%（实时波动值，非平均） |
 | 温度 | 多区域传感器（CPU/GPU/充电芯片/modem…）取最大值 + 明细 |
-| 电池 | 电量/充放电流/电压/温度 |
+| 电池 | 电量/充放电流/电压/温度/SoH/循环次数/充电功率 |
 | 存储 | /data 占用 + 大文件目录扫描（du） |
-| **网速** | wlan/rmnet 设备累计字节 → 差值算速率，**主数值带方向箭头（↑上传 / ↓下载）** |
-| 后台进程 | 60 条按内存排序，PID/包名/状态/内存/CPU/图标，可勾选结束 |
+| **网速** | wlan/rmnet 设备累计字节 → 差值算速率，**主数值带方向箭头（↑上传 / ↓下载）** + 每应用流量排行 |
+| 后台进程 | 60 条按内存排序，PID/包名/真实应用名/状态/内存/CPU/图标，可勾选结束 |
 | 内核压力 | PSI（CPU/内存/IO 压力）、交换、调度器信息、wakelock 耗电来源 |
+| 耗电排行 | dumpsys batterystats 解析，UID → 包名映射 |
 | 模块状态 | 已装内核模块列表 + 启停开关 |
 
 ### 2. AI 诊断（模块的卖点）
@@ -52,16 +53,27 @@
 - **诊断记忆**：历史诊断落盘 JSONL，下一轮诊断时把上一轮结果注入 prompt，AI 能说「比上次升了 8%」这种话
 - **多轮追问**：诊断框里可以继续追问，保留对话上下文，不用每次从头说
 - **本地规则引擎兜底**：`diagnoseLocal` 用最近 15 条历史算斜率，区分「持续高位」和「刚飙升」；没配 API key / 断网时自动走本地
+- **风险分级诊断间隔**：高 60s / 中 120s / 低 300s，不做无意义的高频请求
 
 ### 3. 一键优化与安全护栏
 
-- **一键优化**：AI 或本地规则给出动作清单，如结束后台进程、清缓存、冻结应用
+- **一键优化**：AI 或本地规则给出动作清单，如结束后台进程、清缓存（含一键清理全部大缓存应用）、冻结应用
 - **KILL_GUARD 保护名单**：系统 UI、电话、启动器、输入法、宿主助手等关键进程**永远不会被 kill**，AI 误判也杀不掉
+- **媒体播放保护**：正在播放音乐/音频的应用不会被杀
 - **白名单机制**：`/data/adb/atria_whitelist.conf`（模块目录外，更新不丢失），候选列表图标自动从 APK 提取（native 图标提取器）
 
-### 4. 面板工程细节
+### 4. 安全防护（v3.4.77 起逐步加入）
 
-- **零依赖单文件 WebUI**：一个 `index.html`（HTML+CSS+JS 全内联），WebView 直接打开，无 Node/NPM/打包
+- **格机防护**：进程扫描层 + `du` 超时保护 + fd 块设备监控 + `chattr` 锁，防止异常写入和存储被打满
+- **锁机木马三防**：设备管理器/辅助服务/悬浮窗监控 + 应急解锁动作
+- **崩溃爆发监控**：dropbox 解析 TOMBSTONE/ANR，同进程 1h ≥3 条判为 burst
+- **安装监控**：新装应用扫描（install_watch + install_scan）
+- **广告拦截**：hosts 规则（adblock.sh）
+
+### 5. 面板工程细节
+
+- **四页式 WebUI**：监控 / 状态 / 进程 / 设置四个面板，底部 Tab 栏切换，内容区支持左右滑动切页
+- **零依赖单文件**：一个 `index.html`（HTML+CSS+JS 全内联，5700+ 行），WebView 直接打开，无 Node/NPM/打包
 - **双列进程表格**（CSS Grid `minmax(0,1fr)`）：长进程名不会把旁边一列挤没
 - **历史趋势**：1h / 6h / 24h 可切换
 - **告警历史**：温度/内存阈值告警落盘，可回看
@@ -80,7 +92,7 @@
 
 ### 配置 AI 诊断（可选但强烈建议）
 
-面板右下角 **配置** 按钮：
+面板 **设置** 页：
 
 | 字段 | 说明 |
 |---|---|
@@ -109,33 +121,47 @@
 ```
 ├── module.prop             # 模块声明（id/name/version/versionCode）
 ├── customize.sh            # 安装脚本（权限设置）
-├── service.sh              # 开机自起采集器
+├── service.sh              # 开机自起采集器 + 守护进程
 ├── uninstall.sh            # 卸载清理
 ├── scripts/
 │   ├── collect.sh          # 采集器（awk 解析 /proc、dumpsys、top 等）
-│   ├── collect_loop.sh     # 采集循环（4s 一轮 + 历史落盘 + 注入链）
-│   ├── atria_inject98.sh   # wakelock/存储注入
-│   └── optimize.sh         # 优化动作执行（kill/缓存/冻结）+ 白名单读写
+│   ├── collect_loop.sh     # 采集循环（4s/轮 + 历史落盘 + 注入链）
+│   ├── atria_inject98.sh   # wakelock / 存储注入
+│   ├── optimize.sh         # 优化动作执行（kill/缓存/冻结）+ 白名单读写
+│   ├── pkg_label.sh        # 应用名标签提取（launcher dump 解析）
+│   ├── adblock.sh          # 广告拦截 hosts 规则
+│   ├── guard_watch.sh      # 格机防护守护
+│   ├── install_watch.sh    # 安装监控
+│   ├── install_scan.sh     # 新装应用扫描
+│   ├── brace_bal.awk       # JSON 括号平衡校验
+│   ├── labels.awk          # 标签解析
+│   └── logcat.awk          # 日志解析
 ├── webroot/
 │   ├── index.html          # WebUI 面板（单文件，零依赖）
-│   └── module.prop         # KsuWebUI 面板入口声明
+│   ├── module.prop         # KsuWebUI 面板入口声明
+│   ├── ai_probe.html       # AI 链路探针页（调试用）
+│   └── nav_preview.html    # 导航栏预览（调试用）
 └── native/
     ├── collect.c           # 采集器源码（C）
     ├── collect_c_arm64     # 编译产物（arm64）
     ├── icon_extract.c      # APK 图标提取器源码
-    └── icon_extract_c_arm64# 编译产物（arm64）
+    ├── icon_extract_c_arm64# 编译产物（arm64）
+    ├── atria_guardd.c      # 格机防护守护源码（C）
+    └── atria_guardd        # 编译产物（arm64）
 ```
 
 ### 数据流向
 
 ```
 service.sh (开机)
-    └─> collect_loop.sh (4s/轮)
+    └─> collect_loop.sh (亮屏 4s/轮, 息屏 30s/轮)
             ├─> native/collect_c_arm64      → /proc /sys dumpsys top
             ├─> scripts/collect.sh          → 解析聚合成 JSON
             ├─> scripts/atria_inject98.sh   → wakelock / du 存储注入
-            └─> /data/local/tmp/atria_status.json   ← 面板 fetch
+            ├─> scripts/pkg_label.sh        → 应用名标签
+            └─> /data/local/tmp/atria_status.json   ← 面板读取
                                     └─> index.html 显示 + AI 诊断
+guard_watch.sh / install_watch.sh → 防护与安装监控（独立循环）
 ```
 
 **配置与数据文件**（模块目录外，更新模块不丢失）：
@@ -162,7 +188,7 @@ service.sh (开机)
 ### 为什么是单文件 index.html
 
 面板不分包、不打包、不依赖前端框架——整个 WebUI 就是一个 HTML。
-代价是可维护性差一点（1900+ 行单文件），收益是**部署即改即用**：改完 `index.html` 推到设备，重新打开面板就是新的，没有构建步骤、没有 node_modules、没有版本依赖地狱。这在一个「只身一人、在平板上用 root 权限开发」的环境里是最鲁棒的选择。
+代价是可维护性差一点（5700+ 行单文件），收益是**部署即改即用**：改完 `index.html` 推到设备，重新打开面板就是新的，没有构建步骤、没有 node_modules、没有版本依赖地狱。这在一个「只身一人、在平板上用 root 权限开发」的环境里是最鲁棒的选择。
 
 ### 为什么网速要带方向箭头
 
@@ -178,10 +204,15 @@ AI 的价值在**解读和组合推理**，不在算斜率。两者分工后，�
 
 AI 会幻觉。`KILL_GUARD`（前端）与 `PKG_PROTECTED`（后端 optimize.sh）对齐，系统 UI / 电话 / 启动器 / 输入法 / 宿主助手 / 面板进程本身**永远不会出现在可 kill 清单里**。模块面向其他用户分发，不能假设 AI 永远对。
 
+### 为什么息屏要降频
+
+亮屏 4s 一轮是为了"盯着看"的实时性；息屏后没人看，采集循环自动切到 30s 一轮（`IDLE_INTERVAL`），把后台开销压到几乎无感——实测三脚本进程总 RSS 约 10MB，采集周期 12-16s 时 60s 窗口内 CPU 增量约 3s（≈5%）。监控模块自己不该是耗电大户。
+
 ### 历史教训促成的设计
 
-- **JSON 括号平衡防护**：注入链曾因 `${DATA%?}` 剥括号但没补根 `}` 导致整个状态文件非法（面板每轮 fetch 都解析失败、回落重跑采集器）。现在每轮采样都做 `{`/`}` 平衡计数拦截。
+- **JSON 括号平衡防护**：注入链曾因 `${DATA%?}` 剥括号但没补根 `}` 导致整个状态文件非法（面板每轮都解析失败）。现在每轮采样都做 `{`/`}` 平衡计数拦截（`brace_bal.awk`）。
 - **exec 桥接只返回首行**：KernelSU/SukiSU 的 exec 桥接多行输出会被截断。读写一律走 base64 单行传输 + 前端解码。
+- **超时信号要用 SIGKILL**：`inject_du` 曾因 `timeout` 发的 SIGTERM 被忽略而卡死整个采集循环（v3.4.90 根因修复）。
 - **WebView 内存回收**：面板数据全在 `lastNet`/`history`/`_r` 等闭包变量里，DOM 只做差异更新（`_r` 缓存上一次值，相同不重写），避免长开泄漏。
 
 ---
@@ -195,23 +226,26 @@ AI 会幻觉。`KILL_GUARD`（前端）与 `PKG_PROTECTED`（后端 optimize.sh�
 | v3.2.70 | 诊断历史记忆 + 多轮追问 |
 | v3.2.96–98 | 内核 PSI/调度器注入 + 括号平衡 bug 根治 |
 | v3.3.6–3.3.9 | 宽屏布局 / 配置弹窗平台预设 / 模型自动获取 |
-| v3.4.1 | 完整版验证闭环 |
-| v3.4.2–43 | 三弹窗「点空白关闭」 |
-| v3.4.4 | 进程列表紧凑化 |
-| v3.4.5 | 双列 Grid 炸裂修复（minmax(0,1fr)） |
-| **v3.4.6** | 网速显示方向化（↑/↓ 箭头） |
-| v3.4.7 | AI 链路探针页（ai_probe.html） |
-| v3.4.9 | AI 白名单管理动作（whitelist add/remove 持久化） |
-| v3.4.13–17 | 耗电排行注入（dumpsys batterystats 解析 + UID→包名映射） |
-| v3.4.20 | 应用名标签提取（launcher dump 解析，面板显示真实应用名） |
-| v3.4.21 | 一键清理全部大缓存应用（clean_cache_all） |
-| v3.4.22 | 媒体播放保护（正在播放音乐/音频的应用不被杀）+ 屏幕状态注入 |
-| v3.4.24 | AI 诊断间隔按风险动态调节（高 60s / 中 120s / 低 300s）+ 历史自动截断 |
-| v3.4.25 | 电池增强（SoH/循环次数/充电功率）+ 每应用流量排行 + 温度告警节流 |
-| v3.4.27 | 崩溃爆发监控（dropbox 解析 TOMBSTONE/ANR，同进程 1h ≥3 条 = burst） |
-| v3.4.28 | 锁机木马三防（设备管理器/辅助服务/悬浮窗监控 + 应急解锁动作） |
-| v3.4.29 | 温度告警阈值回调（骁龙 8 Gen 3 类平台轻载 48-52°C 属正常） |
-| **v3.4.34** | 全项目代码审查：pkg_label.sh 注入修复 + module.prop 版本统一 + 清理非交付文件 |
+| v3.4.6 | 网速显示方向化（↑/↓ 箭头） |
+| v3.4.13–17 | 耗电排行注入 + 每应用流量排行 |
+| v3.4.20–22 | 应用名标签提取 / 一键清缓存 / 媒体播放保护 |
+| v3.4.24–29 | 风险分级诊断间隔 / 电池增强 / 崩溃爆发监控 / 锁机木马三防 / 温度阈值回调 |
+| v3.4.34 | 全项目代码审查：注入修复 + 版本统一 + 清理非交付文件 |
+| v3.4.77–86 | 广告拦截 + 安装监控 / 格机防护（进程扫描 + fd 监控 + chattr 锁）/ C 扫描器 |
+| v3.4.87–90 | 底部导航与布局修复 / AI prompt 瘦身（诊断 29.4s→15.9s）/ inject_du 卡死根治 |
+| v3.4.91–105 | 四页式面板落地（监控/状态/进程/设置）+ 顶栏视觉优化 + 滑动切页 + exec 阻塞治理 |
+| **v3.5.8** | 酷安发布版：版本号进位，全功能整合 |
+
+---
+
+## 七、注意事项
+
+- **Root 必需**：模块依赖 KernelSU/SukiSU/Magisk/APatch 的 root 与模块机制
+- **兼容性**：依赖 `/proc/net/dev`、`dumpsys`、`top -n 1 -b`、PSI（内核需开启 CONFIG_PSI，未开启时该项自动缺省）
+- **隐私**：AI 诊断会把设备指标（不含个人文件内容）发给你配置的 API；不想发就别配 key，本地规则引擎完全够用
+- **进程列表限制**：`top_processes` 60 条按 rss_mb 排序，CPU 高但内存小的进程可能排在列表外（历史遗留限制）——此时看 CPU% 列
+- **温度误值**：临时传感器偶发尖峰（如读到 90°C 而同帧 battery 仅 32°C），判读以 battery.temperature 为准
+
 ---
 
 ## 许可证
@@ -220,18 +254,13 @@ AI 会幻觉。`KILL_GUARD`（前端）与 `PKG_PROTECTED`（后端 optimize.sh�
 
 简而言之：你可以自由使用、修改、分发和商用本项目的代码，但需要保留原始许可证与版权声明；修改过的文件需注明你做了改动；项目不提供任何担保。完整条款见 [LICENSE](./LICENSE) 文件。
 
+---
+
 ## 安装包下载
+
 点击下载：[**atria_monitor_v3.5.8.zip**](https://github.com/lqx3617-dot/atria_monitor/releases/download/v3.5.8/atria_monitor_v3.5.8.zip)（1.4 MB，28 文件，SHA256 `e8c6f0e752204a047983cca1a94f9474ff4edc373fed7b61ba2db37230898c44`）
 
 刷入方法：内核管理器（KernelSU / SukiSU / Magisk / APatch）选「模块」→ 「从存储安装」，选择下载的 zip，安装后重启即可用。面板打开方式：内核管理器里点本模块，或用任何 file:// 可访问的 WebView 打开「面板」。
-
-七、注意事项
-
-- **Root 必需**：模块依赖 KernelSU/SukiSU/Magisk/APatch 的 root 与模块机制
-- **兼容性**：依赖 `/proc/net/dev`、`dumpsys`、`top -n 1 -b`、PSI（内核需开启 CONFIG_PSI，未开启时该项自动缺省）
-- **隐私**：AI 诊断会把设备指标（不含个人文件内容）发给你配置的 API；不想发就别配 key，本地规则引擎完全够用
-- **进程列表限制**：`top_processes` 60 条按 rss_mb 排序，CPU 高但内存小的进程可能排在列表外（历史遗留限制）——此时看 CPU% 列
-- **温度误值**：临时传感器偶发尖峰（如读到 90°C 而同帧 battery 仅 32°C），判读以 battery.temperature 为准
 
 ---
 
