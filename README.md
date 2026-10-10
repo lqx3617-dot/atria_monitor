@@ -220,7 +220,6 @@ AI 会幻觉。`KILL_GUARD`（前端）与 `PKG_PROTECTED`（后端 optimize.sh�
 
 简而言之：你可以自由使用、修改、分发和商用本项目的代码，但需要保留原始许可证与版权声明；修改过的文件需注明你做了改动；项目不提供任何担保。完整条款见 [LICENSE](./LICENSE) 文件。
 
-## 
 ## 安装包下载
 点击下载：[**atria_monitor_v3.5.8.zip**](https://github.com/lqx3617-dot/atria_monitor/releases/download/v3.5.8/atria_monitor_v3.5.8.zip)（1.4 MB，28 文件，SHA256 `e8c6f0e752204a047983cca1a94f9474ff4edc373fed7b61ba2db37230898c44`）
 
