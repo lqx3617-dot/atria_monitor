@@ -222,7 +222,7 @@ AI 会幻觉。`KILL_GUARD`（前端）与 `PKG_PROTECTED`（后端 optimize.sh�
 
 ## 
 ## 安装包下载
-点击下载：[**atria_monitor_v3.4.34.zip**](https://github.com/lqx3617-dot/atria_monitor/releases/download/v3.4.34/atria_monitor_v3.4.34.zip)（779 KB，15 文件，SHA256 `6ecf603dc250d4854fee1cca8a5abbd3ce852bd928731d5a7bb6c92a8d0a1006`）
+点击下载：[**atria_monitor_v3.5.8.zip**](https://github.com/lqx3617-dot/atria_monitor/releases/download/v3.5.8/atria_monitor_v3.5.8.zip)（1.4 MB，28 文件，SHA256 `e8c6f0e752204a047983cca1a94f9474ff4edc373fed7b61ba2db37230898c44`）
 
 刷入方法：内核管理器（KernelSU / SukiSU / Magisk / APatch）选「模块」→ 「从存储安装」，选择下载的 zip，安装后重启即可用。面板打开方式：内核管理器里点本模块，或用任何 file:// 可访问的 WebView 打开「面板」。
 
